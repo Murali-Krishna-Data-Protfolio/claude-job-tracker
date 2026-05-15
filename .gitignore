@@ -1,0 +1,33 @@
+# ── Secrets — never commit these ──────────────────────────────────────────────
+job_tracker/.env
+job_tracker/credentials.json
+job_tracker/gdrive_token.json
+
+# ── Generated outputs ─────────────────────────────────────────────────────────
+job_tracker/outputs/
+job_tracker/raw_jobs.json
+resumes/output/
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Claude Code local settings (machine-specific) ────────────────────────────
+.claude/
+
+# ── OS / editor noise ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.idea/
+.vscode/
