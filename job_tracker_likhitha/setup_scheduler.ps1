@@ -2,7 +2,7 @@
 # Run this ONCE (as Administrator) to register the daily Task Scheduler job.
 # Usage:  powershell -ExecutionPolicy Bypass -File setup_scheduler.ps1
 
-$TaskName   = "JobApplyTracker_Daily"
+$TaskName   = "JobApplyTracker_Likhitha_Daily"
 $ScriptPath = Join-Path $PSScriptRoot "run_daily.bat"
 $LogDir     = Join-Path $PSScriptRoot "outputs"
 
@@ -34,7 +34,7 @@ Register-ScheduledTask `
     -Action $Action `
     -Trigger $Trigger `
     -Settings $Settings `
-    -Description "Daily English-speaking job search in France (Indeed via Claude Code)" `
+    -Description "Daily PM/Scrum Master job search for Likhitha in France" `
     -RunLevel Limited
 
 Write-Host ""
