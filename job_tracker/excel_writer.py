@@ -188,7 +188,8 @@ def append_jobs(wb: Workbook, jobs: list[dict]) -> int:
         showDropDown=False,
     )
     ws.add_data_validation(dv)
-    dv.add(f"G2:G{ws.max_row}")
+    if ws.max_row >= 2:
+        dv.add(f"G2:G{ws.max_row}")
 
     return added
 
