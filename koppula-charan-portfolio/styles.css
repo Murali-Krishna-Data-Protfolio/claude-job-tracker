@@ -85,7 +85,9 @@ a { color: inherit; text-decoration: none; }
 .logo {
   font-family: 'Playfair Display', serif;
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: 1.15rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .logo .dot { color: var(--accent); }
 

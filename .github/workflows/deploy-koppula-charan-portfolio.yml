@@ -1,10 +1,10 @@
-name: Deploy Charan Portfolio to GitHub Pages
+name: Deploy Koppula Charan Portfolio to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - 'charan-portfolio/**'
+      - 'koppula-charan-portfolio/**'
   workflow_dispatch:
 
 permissions:
@@ -27,6 +27,6 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: charan-portfolio
+          path: koppula-charan-portfolio
       - id: deployment
         uses: actions/deploy-pages@v4
