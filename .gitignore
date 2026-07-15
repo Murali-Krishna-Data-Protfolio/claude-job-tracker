@@ -1,12 +1,15 @@
 # ── Secrets — never commit these ──────────────────────────────────────────────
-job_tracker/.env
-job_tracker/credentials.json
-job_tracker/gdrive_token.json
+**/.env
+**/credentials.json
+**/gdrive_token.json
 
 # ── Generated outputs ─────────────────────────────────────────────────────────
-job_tracker/outputs/
-job_tracker/raw_jobs.json
+**/outputs/
+**/raw_jobs.json
 resumes/output/
+
+# ── Excel lock files ──────────────────────────────────────────────────────────
+~$*.xlsx
 
 # ── Python cache ──────────────────────────────────────────────────────────────
 __pycache__/
