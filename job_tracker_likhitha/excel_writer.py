@@ -182,13 +182,14 @@ def append_jobs(wb: Workbook, jobs: list[dict]) -> int:
         ws.add_table(table)
 
     # Status dropdown validation
-    dv = DataValidation(
-        type="list",
-        formula1=f'"{",".join(STATUS_CHOICES)}"',
-        showDropDown=False,
-    )
-    ws.add_data_validation(dv)
-    dv.add(f"G2:G{ws.max_row}")
+    if ws.max_row > 1:
+        dv = DataValidation(
+            type="list",
+            formula1=f'"{",".join(STATUS_CHOICES)}"',
+            showDropDown=False,
+        )
+        ws.add_data_validation(dv)
+        dv.add(f"G2:G{ws.max_row}")
 
     return added
 
