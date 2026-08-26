@@ -1,8 +1,9 @@
 """
 sync_gdrive.py — Upload job_applications.xlsx to Google Drive.
 
-Uploads the Excel DB to a "Job Tracker" folder in gkmurali37@gmail.com's Drive.
-File stays in-place (same file ID) so the share link never changes.
+Uploads the Excel DB to a "Job Tracker" folder in whichever Google account
+you authenticate with during --setup. File stays in-place (same file ID) so
+the share link never changes.
 
 First run:  python sync_gdrive.py --setup
 Daily run:  called automatically by job_tracker.py
@@ -13,11 +14,16 @@ import os
 import sys
 from pathlib import Path
 
-ENV_PATH    = Path(__file__).parent / ".env"
-TOKEN_PATH  = Path(__file__).parent / "gdrive_token.json"
-CREDS_PATH  = Path(__file__).parent / "credentials.json"
+from config import ACTIVE_PROFILE_ID, OUTPUT_PATH
 
-EXCEL_PATH  = Path(__file__).parent / "outputs" / "job_applications.xlsx"
+# This file lives in src/; .env, credentials.json and the OAuth token cache
+# live at the project root so one credentials.json can be reused across profiles.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_PATH    = PROJECT_ROOT / ".env"
+TOKEN_PATH  = PROJECT_ROOT / f"gdrive_token.{ACTIVE_PROFILE_ID}.json"
+CREDS_PATH  = PROJECT_ROOT / "credentials.json"
+
+EXCEL_PATH  = Path(OUTPUT_PATH)
 FOLDER_NAME = "Job Tracker"
 FILE_NAME   = "job_applications.xlsx"
 
@@ -184,7 +190,7 @@ def setup_gdrive() -> str:
     print(f"\n=== Setup Complete ===")
     print(f"  Drive link : {view_url}")
     print(f"\n  On your phone:")
-    print(f"    1. Install 'Google Drive' app (sign in as gkmurali37@gmail.com)")
+    print(f"    1. Install 'Google Drive' app (sign in with the account you authenticated above)")
     print(f"    2. Or open: {view_url}")
     print()
     return view_url

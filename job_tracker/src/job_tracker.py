@@ -16,14 +16,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
-# Load .env if present (ANTHROPIC_API_KEY)
+# Load .env if present (this file lives in src/, .env lives at the project root)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 try:
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env", override=True)
+    load_dotenv(PROJECT_ROOT / ".env", override=True)
 except ImportError:
     pass
 
-from config import OUTPUT_PATH, PLATFORMS, SEARCH_QUERIES
+from config import CANDIDATE_NAME, EMAIL_TO, LOCATION, OUTPUT_PATH, PLATFORMS, SEARCH_QUERIES, TARGET_ROLES
 from excel_writer import (
     _build_dashboard,
     _ensure_jobs_sheet,
@@ -37,8 +38,12 @@ from sync_bookmarks import sync_bookmarks
 from sync_cloud import sync_cloud
 from sync_gdrive import sync_gdrive
 
-GMAIL_USER = "gkmurali37@gmail.com"
-GMAIL_PASS = os.environ.get("GMAIL_APP_PASSWORD", "dfzuaeyaehqanfqg")
+# GMAIL_USER is the sending account (must match GMAIL_APP_PASSWORD) — always
+# from .env, never hardcoded, so each user's own clone sends from their own
+# Gmail. The recipient defaults to the same address but can differ per profile.
+GMAIL_USER = os.environ.get("GMAIL_USER", "")
+GMAIL_PASS = os.environ.get("GMAIL_APP_PASSWORD", "")
+EMAIL_RECIPIENT = EMAIL_TO or GMAIL_USER
 
 
 def banner(text: str):
@@ -52,8 +57,12 @@ def check_api_key():
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not key or not key.startswith("sk-"):
         print("\n[ERROR] ANTHROPIC_API_KEY not set or invalid.")
-        print("  Set it in C:\\Claude\\job_tracker\\.env  as:")
+        print(f"  Set it in {PROJECT_ROOT / '.env'}  as:")
         print("  ANTHROPIC_API_KEY=sk-ant-...")
+        sys.exit(1)
+    if not GMAIL_USER or not GMAIL_PASS:
+        print("\n[ERROR] GMAIL_USER / GMAIL_APP_PASSWORD not set.")
+        print(f"  Set them in {PROJECT_ROOT / '.env'}  — see .env.example.")
         sys.exit(1)
 
 
@@ -62,7 +71,7 @@ def _count_by_category(jobs: list[dict]) -> dict[str, int]:
     for j in jobs:
         title = j.get("Title") or j.get("title") or ""
         cat = "Other"
-        for kw in ["Data Analyst", "Data Engineer", "Business Analyst", "BI Developer", "Analytics Engineer"]:
+        for kw in TARGET_ROLES:
             if kw.lower() in title.lower():
                 cat = kw
                 break
@@ -114,7 +123,7 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
 <body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f5f7fa;padding:20px;'>
   <div style='background:linear-gradient(135deg,#1F3864,#2E75B6);border-radius:12px 12px 0 0;padding:24px 32px;'>
     <h2 style='color:#fff;margin:0;font-size:18px;'>&#128196; job_db loaded &mdash; {today_str}</h2>
-    <p style='color:#cde4ff;margin:6px 0 0;font-size:13px;'>France &bull; English-speaking roles &bull; Auto-update</p>
+    <p style='color:#cde4ff;margin:6px 0 0;font-size:13px;'>{CANDIDATE_NAME} &bull; {LOCATION} &bull; English-speaking roles &bull; Auto-update</p>
   </div>
   <div style='background:#fff;border:1px solid #e0e0e0;border-top:none;padding:24px 32px;'>
 
@@ -161,7 +170,7 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"job_db loaded â€” {today_str} | +{added} new jobs (Total: {total_after})"
     msg["From"] = GMAIL_USER
-    msg["To"] = GMAIL_USER
+    msg["To"] = EMAIL_RECIPIENT
     msg.attach(MIMEText(html, "html"))
 
     try:
@@ -169,8 +178,8 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
             server.ehlo()
             server.starttls()
             server.login(GMAIL_USER, GMAIL_PASS)
-            server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
-        print(f"  Email sent -> {GMAIL_USER}")
+            server.sendmail(GMAIL_USER, EMAIL_RECIPIENT, msg.as_string())
+        print(f"  Email sent -> {EMAIL_RECIPIENT}")
     except Exception as e:
         print(f"  [warn] Email failed: {e}")
 

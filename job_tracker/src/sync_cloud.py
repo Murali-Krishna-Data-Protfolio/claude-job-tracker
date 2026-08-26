@@ -16,7 +16,11 @@ from pathlib import Path
 
 import requests
 
-ENV_PATH = Path(__file__).parent / ".env"
+from config import CANDIDATE_NAME, EMAIL_TO, TARGET_ROLES
+
+# This file lives in src/, .env lives at the project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_PATH = PROJECT_ROOT / ".env"
 
 # ── Config keys stored in .env ─────────────────────────────────────────────────
 TELEGRAPH_TOKEN_KEY  = "TELEGRAPH_ACCESS_TOKEN"
@@ -70,8 +74,8 @@ def _telegraph_post(endpoint: str, **kwargs) -> dict:
 def _create_telegraph_account() -> str:
     result = _telegraph_post(
         "createAccount",
-        short_name="MuraliJobs",
-        author_name="Murali Krishna — Job Tracker",
+        short_name=f"{CANDIDATE_NAME.split()[0]}Jobs",
+        author_name=f"{CANDIDATE_NAME} — Job Tracker",
         author_url="https://www.linkedin.com/search/results/jobs/?keywords=data+analyst+france",
     )
     token = result["access_token"]
@@ -99,13 +103,12 @@ def _build_content(jobs: list[dict]) -> list[dict]:
     })
     nodes.append({"tag": "hr"})
 
-    # Group by category
+    # Group by category (driven by the active profile's target_roles)
     categories: dict[str, list[dict]] = {}
     for j in jobs:
         title = j.get("Title") or j.get("title") or ""
         cat = "Other"
-        for kw in ["Data Analyst", "Data Engineer", "Business Analyst",
-                   "BI Developer", "Analytics Engineer"]:
+        for kw in TARGET_ROLES:
             if kw.lower() in title.lower():
                 cat = kw
                 break
@@ -116,8 +119,7 @@ def _build_content(jobs: list[dict]) -> list[dict]:
         "Rejected": "❌", "Saved": "🔖",
     }
 
-    cat_order = ["Data Analyst", "Data Engineer", "Business Analyst",
-                 "BI Developer", "Analytics Engineer", "Other"]
+    cat_order = [*TARGET_ROLES, "Other"]
 
     for cat in cat_order:
         cat_jobs = categories.get(cat)
@@ -181,7 +183,7 @@ def _create_or_update_page(token: str, page_path: str | None,
             access_token=token,
             title=title,
             content=content,
-            author_name="Murali Krishna",
+            author_name=CANDIDATE_NAME,
         )
     else:
         result = _telegraph_post(
@@ -189,7 +191,7 @@ def _create_or_update_page(token: str, page_path: str | None,
             access_token=token,
             title=title,
             content=content,
-            author_name="Murali Krishna",
+            author_name=CANDIDATE_NAME,
             return_content=False,
         )
         _write_env_key(TELEGRAPH_PATH_KEY, result["path"])
@@ -275,8 +277,9 @@ def setup_cloud() -> dict[str, str]:
     if not topic:
         print("\n[3/3] Generating ntfy topic...")
         # deterministic but unique to this user
-        topic = "murali_jobs_" + hashlib.md5(
-            "gkmurali37@gmail.com".encode()
+        slug = CANDIDATE_NAME.split()[0].lower() if CANDIDATE_NAME else "user"
+        topic = f"{slug}_jobs_" + hashlib.md5(
+            (EMAIL_TO or slug).encode()
         ).hexdigest()[:8]
         _write_env_key(NTFY_TOPIC_KEY, topic)
         print(f"  Topic: {topic}")

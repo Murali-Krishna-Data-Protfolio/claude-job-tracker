@@ -26,7 +26,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from config import OUTPUT_PATH, STATUS_CHOICES
+from config import OUTPUT_PATH, STATUS_CHOICES, TARGET_ROLES
 
 # ── Colour palette (Murali's Power BI / dark-blue theme) ──────────────────────
 C_HEADER_BG   = "1F3864"   # dark navy
@@ -240,9 +240,9 @@ def _build_dashboard(wb: Workbook):
         by_status[status] = by_status.get(status, 0) + 1
 
         title = j.get("Title") or "Unknown"
-        # Normalise to broad category
+        # Normalise to broad category (driven by the active profile's target_roles)
         cat = "Other"
-        for kw in ["Data Analyst", "Data Engineer", "Business Analyst", "BI Developer", "Analytics Engineer"]:
+        for kw in TARGET_ROLES:
             if kw.lower() in title.lower():
                 cat = kw
                 break

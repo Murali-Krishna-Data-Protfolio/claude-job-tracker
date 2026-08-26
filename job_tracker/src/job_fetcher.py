@@ -453,14 +453,47 @@ def fetch_all_jobs() -> list[dict]:
 
 # ── English-role classifier ───────────────────────────────────────────────────
 
+def _extract_json_object(text: str) -> dict:
+    """
+    Pull the JSON object out of a Claude response, tolerating:
+      - ```json ... ``` or ``` ... ``` code fences
+      - any commentary the model adds before/after the JSON
+
+    Root cause of the old bug: Claude sometimes appends a trailing sentence
+    after the closing '}' (or wraps the whole thing in a fence with text
+    after it). json.loads() rejects that as "Extra data" and the caller
+    used to silently include the job anyway. json.JSONDecoder.raw_decode()
+    parses just the first valid JSON value and ignores anything after it,
+    so it survives that trailing text instead of throwing.
+    """
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+    cleaned = re.sub(r"\n?```$", "", cleaned.strip())
+    start = cleaned.find("{")
+    if start == -1:
+        raise ValueError(f"no JSON object in response: {cleaned[:120]!r}")
+    obj, _ = json.JSONDecoder().raw_decode(cleaned[start:])
+    return obj
+
+
 def filter_english_jobs(jobs: list[dict]) -> list[dict]:
-    """Classify each job using Claude API with cached profile prompt."""
+    """
+    Classify each job using Claude API with cached profile prompt.
+
+    Strict / fail-closed: a job is included ONLY when the classifier
+    successfully confirms is_english_role=true with confidence at or above
+    the threshold. If the API call errors, the response can't be parsed, or
+    the model is anything other than confidently "yes" — the job is
+    EXCLUDED, never added on a guess. This is what "English jobs only"
+    means in practice: an unverified job is not an English job.
+    """
     if not jobs:
         return []
 
     client      = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     cache_block = get_cached_system_message()
     english_jobs: list[dict] = []
+    excluded = 0
 
     print(f"\n  Classifying {len(jobs)} jobs for English-speaking requirement...")
 
@@ -472,35 +505,57 @@ def filter_english_jobs(jobs: list[dict]) -> list[dict]:
             f"Source: {job.get('source','')}\n"
             f"Description: {job.get('description','')}"
         )
+        src = job.get("source", "")
+
+        # Up to 2 attempts total — a transient parse hiccup shouldn't cost a
+        # real English job, but repeated failure must still exclude it.
+        result = None
+        last_err: Exception | None = None
+        for attempt in range(2):
+            try:
+                resp = client.messages.create(
+                    model=CLAUDE_MODEL,
+                    max_tokens=256,
+                    system=[cache_block],
+                    messages=[{"role": "user", "content": job_text}],
+                )
+                result = _extract_json_object(resp.content[0].text)
+                cache_hit = getattr(resp.usage, "cache_read_input_tokens", 0)
+                break
+            except Exception as e:
+                last_err = e
+                continue
+
+        if result is None:
+            job["english_confidence"] = 0.0
+            job["english_reason"]     = f"excluded: classification failed ({last_err})"
+            excluded += 1
+            print(f"    SKIP [{src}] {job.get('title')} @ {job.get('company')} — classifier error, excluded")
+            continue
+
         try:
-            resp = client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=256,
-                system=[cache_block],
-                messages=[{"role": "user", "content": job_text}],
-            )
-            raw = re.sub(r"^```[a-z]*\n?|\n?```$", "", resp.content[0].text.strip())
-            result     = json.loads(raw)
             confidence = float(result.get("confidence", 0))
             is_english = bool(result.get("is_english_role", False))
-            reason     = result.get("reason", "")
+            reason     = str(result.get("reason", ""))
+        except (TypeError, ValueError) as e:
+            job["english_confidence"] = 0.0
+            job["english_reason"]     = f"excluded: malformed classifier response ({e})"
+            excluded += 1
+            print(f"    SKIP [{src}] {job.get('title')} @ {job.get('company')} — malformed response, excluded")
+            continue
 
-            job["english_confidence"] = round(confidence, 2)
-            job["english_reason"]     = reason
+        job["english_confidence"] = round(confidence, 2)
+        job["english_reason"]     = reason
 
-            cache_hit = getattr(resp.usage, "cache_read_input_tokens", 0)
-            tag = f" [cache:{cache_hit}tk]" if cache_hit else ""
-            verdict = "PASS" if (is_english and confidence >= ENGLISH_CONFIDENCE_THRESHOLD) else "SKIP"
-            src = job.get("source", "")
-            print(f"    {verdict} [{src}] {job.get('title')} @ {job.get('company')} ({confidence:.0%}){tag}")
+        tag = f" [cache:{cache_hit}tk]" if cache_hit else ""
+        passes = is_english and confidence >= ENGLISH_CONFIDENCE_THRESHOLD
+        verdict = "PASS" if passes else "SKIP"
+        print(f"    {verdict} [{src}] {job.get('title')} @ {job.get('company')} ({confidence:.0%}){tag}")
 
-            if is_english and confidence >= ENGLISH_CONFIDENCE_THRESHOLD:
-                english_jobs.append(job)
-
-        except (json.JSONDecodeError, ValueError, Exception) as e:
-            job["english_confidence"] = 0.5
-            job["english_reason"]     = f"parse error: {e}"
+        if passes:
             english_jobs.append(job)
+        else:
+            excluded += 1
 
-    print(f"\n  English-speaking: {len(english_jobs)} / {len(jobs)}")
+    print(f"\n  English-speaking: {len(english_jobs)} / {len(jobs)}  (excluded: {excluded})")
     return english_jobs
