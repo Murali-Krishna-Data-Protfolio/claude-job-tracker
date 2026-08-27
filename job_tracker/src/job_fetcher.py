@@ -451,6 +451,63 @@ def fetch_all_jobs() -> list[dict]:
     return all_jobs
 
 
+# ── Link validation ───────────────────────────────────────────────────────────
+
+def check_url(url: str, timeout: int = 10) -> tuple[bool, str]:
+    """
+    Check whether a job's apply URL still resolves to a real listing.
+    Returns (is_valid, reason).
+
+    Only treat a link as dead on a signal that actually means the listing
+    is gone: 404 (not found) or 410 (gone). A 403 is deliberately NOT
+    treated as dead — plenty of large employers (BNP Paribas, Capgemini,
+    Thales, PwC, Accenture, ...) front their career sites with bot
+    protection that blocks any automated request with 403 regardless of
+    whether the listing is still live, so 403 means "couldn't verify",
+    not "confirmed gone". Treating it as dead was a real false-positive:
+    it deleted still-open jobs the first time this ran. Same reasoning for
+    connection errors/timeouts — network flakiness isn't proof either.
+    """
+    if not url or not url.startswith("http"):
+        return False, "missing or malformed URL"
+    try:
+        r = requests.head(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
+        if r.status_code in (405, 403):
+            # Some boards reject HEAD outright but serve GET fine.
+            r2 = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True, stream=True)
+            r2.close()
+            r = r2
+        if r.status_code in (404, 410):
+            return False, f"HTTP {r.status_code}"
+        if r.status_code == 403:
+            return True, "HTTP 403 (bot-blocked, assumed still live)"
+        if 200 <= r.status_code < 400:
+            return True, f"HTTP {r.status_code}"
+        # Any other unexpected status (5xx etc.) — inconclusive, don't discard a real job over it.
+        return True, f"HTTP {r.status_code} (inconclusive, kept)"
+    except requests.RequestException as e:
+        return True, f"unreachable ({type(e).__name__}) — inconclusive, kept"
+
+
+def filter_valid_links(jobs: list[dict]) -> list[dict]:
+    """Drop jobs whose apply URL is dead, removed, or unreachable."""
+    if not jobs:
+        return []
+    valid: list[dict] = []
+    print(f"\n  Verifying {len(jobs)} job links...")
+    for job in jobs:
+        ok, reason = check_url(job.get("url", ""))
+        verdict = "PASS" if ok else "SKIP"
+        print(f"    {verdict} [{job.get('source','')}] {job.get('title')} @ {job.get('company')} — {reason}")
+        if ok:
+            valid.append(job)
+        else:
+            job["link_invalid_reason"] = reason
+        time.sleep(0.2)   # polite between requests
+    print(f"\n  Valid links: {len(valid)} / {len(jobs)}")
+    return valid
+
+
 # ── English-role classifier ───────────────────────────────────────────────────
 
 def _extract_json_object(text: str) -> dict:

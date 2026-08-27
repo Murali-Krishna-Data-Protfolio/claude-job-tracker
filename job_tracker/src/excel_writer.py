@@ -194,6 +194,66 @@ def append_jobs(wb: Workbook, jobs: list[dict]) -> int:
     return added
 
 
+def rewrite_jobs_sheet(wb: Workbook, keep_rows: list[dict]) -> None:
+    """
+    Replace the Jobs sheet with exactly `keep_rows` (dicts keyed by
+    COLUMNS), preserving every existing value as-is — Date_Found, Status,
+    English_Confidence etc. are NOT reset or recomputed.
+
+    Use this instead of ws.delete_rows() in a loop to drop rows: on this
+    project's openpyxl version, repeated delete_rows() on a sheet with an
+    Excel Table defined does not reliably shift cell data up — it can leave
+    stale blank rows in the middle and a stale Table ref, silently
+    corrupting the sheet's layout even though save_workbook() succeeds
+    without error. Rebuilding the sheet from scratch (same pattern
+    _build_dashboard already uses for the Dashboard sheet) avoids that
+    entirely: no delete_rows call, no possibility of a stale range.
+    """
+    if "Jobs" in wb.sheetnames:
+        del wb["Jobs"]
+    ws = wb.create_sheet("Jobs", 0)
+    _write_jobs_header(ws)
+
+    for i, row_dict in enumerate(keep_rows):
+        row_num = i + 2
+        is_alt = row_num % 2 == 0
+        fill = PatternFill("solid", fgColor=C_ALT_ROW) if is_alt else None
+        for col_idx, col_name in enumerate(COLUMNS, start=1):
+            value = row_dict.get(col_name, "")
+            cell = ws.cell(row=row_num, column=col_idx, value=value)
+            cell.border = _thin_border()
+            cell.alignment = Alignment(vertical="center", wrap_text=(col_idx in (3, 9, 12)))
+            if fill:
+                cell.fill = fill
+            if col_idx == 8 and value and str(value).startswith("http"):
+                cell.hyperlink = value
+                cell.font = Font(color="0563C1", underline="single")
+
+    if ws.max_row >= 2:
+        last_col = get_column_letter(len(COLUMNS))
+        ref = f"A1:{last_col}{ws.max_row}"
+        for tbl in list(ws.tables.values()):
+            del ws.tables[tbl.name]
+        table = Table(displayName="JobsTable", ref=ref)
+        style = TableStyleInfo(
+            name="TableStyleMedium9",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=True,
+            showColumnStripes=False,
+        )
+        table.tableStyleInfo = style
+        ws.add_table(table)
+
+        dv = DataValidation(
+            type="list",
+            formula1=f'"{",".join(STATUS_CHOICES)}"',
+            showDropDown=False,
+        )
+        ws.add_data_validation(dv)
+        dv.add(f"G2:G{ws.max_row}")
+
+
 def _build_dashboard(wb: Workbook):
     """Rebuild the Dashboard sheet with KPI summary and charts."""
     if "Dashboard" in wb.sheetnames:

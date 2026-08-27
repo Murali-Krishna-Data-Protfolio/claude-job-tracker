@@ -16,6 +16,14 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+# Job titles/companies are full of accented French text (é, è, ç...); some
+# terminals default stdout to cp1252, which crashes on encode instead of
+# just failing to render the glyph. Never let a print() kill the whole run.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
+
 # Load .env if present (this file lives in src/, .env lives at the project root)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 try:
@@ -33,7 +41,7 @@ from excel_writer import (
     load_existing_job_ids,
     save_workbook,
 )
-from job_fetcher import fetch_all_jobs, filter_english_jobs
+from job_fetcher import fetch_all_jobs, filter_english_jobs, filter_valid_links
 from sync_bookmarks import sync_bookmarks
 from sync_cloud import sync_cloud
 from sync_gdrive import sync_gdrive
@@ -79,7 +87,8 @@ def _count_by_category(jobs: list[dict]) -> dict[str, int]:
     return cats
 
 
-def send_db_update_email(added: int, total_before: int, total_after: int, new_jobs: list[dict], elapsed: float):
+def send_db_update_email(added: int, total_before: int, total_after: int, new_jobs: list[dict],
+                          elapsed: float, telegraph_url: str | None = None):
     today_str = date.today().strftime("%B %d, %Y")
     cats = _count_by_category(new_jobs)
 
@@ -135,6 +144,11 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
         <div style='font-size:13px;color:#666;margin-top:2px;'>Scanned {len(SEARCH_QUERIES)} queries &bull; Completed in {elapsed:.0f}s</div>
       </div>
     </div>
+
+    {f'''<!-- Telegraph link -->
+    <a href='{telegraph_url}' style='display:block;text-align:center;background:#1F3864;color:#fff;
+       text-decoration:none;font-size:14px;font-weight:bold;border-radius:8px;padding:14px 20px;
+       margin-bottom:20px;'>&#128241; Open full job list in browser</a>''' if telegraph_url else ""}
 
     <!-- KPI row -->
     <table width='100%' style='border-collapse:collapse;margin-bottom:20px;'>
@@ -203,10 +217,14 @@ def main():
     all_jobs = fetch_all_jobs()
     print(f"  Total unique jobs fetched: {len(all_jobs)}")
 
-    # â”€â”€ Step 3: Exclude already-tracked jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # --- Step 3: Exclude already-tracked jobs, then drop dead links ------------
     print("\n[3/9] Deduplicating against Excel DB...")
     new_jobs = [j for j in all_jobs if str(j.get("job_id", "")) not in existing_ids]
     print(f"  New (not in DB): {len(new_jobs)}  |  Already in DB: {len(all_jobs) - len(new_jobs)}")
+
+    before_link_check = len(new_jobs)
+    new_jobs = filter_valid_links(new_jobs)
+    dead_links = before_link_check - len(new_jobs)
 
     # â”€â”€ Step 4: Filter English-speaking roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if new_jobs:
@@ -238,12 +256,13 @@ def main():
     # â”€â”€ Step 9: Send DB update email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     elapsed = time.time() - start
     print("\n[9/9] Sending job_db update email...")
-    send_db_update_email(added, total_before, total_after, english_jobs, elapsed)
+    send_db_update_email(added, total_before, total_after, english_jobs, elapsed, telegraph_url)
 
     # â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     banner("Run Complete")
     print(f"  Queries run       : {len(SEARCH_QUERIES)}")
     print(f"  Jobs fetched      : {len(all_jobs)}")
+    print(f"  Dead links dropped: {dead_links}")
     print(f"  New English jobs  : {len(english_jobs)}")
     print(f"  Added to DB       : {added}")
     print(f"  Total in DB       : {total_after}")
