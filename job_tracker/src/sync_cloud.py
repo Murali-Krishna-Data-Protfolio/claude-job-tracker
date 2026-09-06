@@ -16,16 +16,28 @@ from pathlib import Path
 
 import requests
 
-from config import CANDIDATE_NAME, EMAIL_TO, TARGET_ROLES
+from config import ACTIVE_PROFILE_ID, CANDIDATE_NAME, EMAIL_TO, TARGET_ROLES
 
 # This file lives in src/, .env lives at the project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = PROJECT_ROOT / ".env"
 
 # ── Config keys stored in .env ─────────────────────────────────────────────────
-TELEGRAPH_TOKEN_KEY  = "TELEGRAPH_ACCESS_TOKEN"
-TELEGRAPH_PATH_KEY   = "TELEGRAPH_PAGE_PATH"
-NTFY_TOPIC_KEY       = "NTFY_TOPIC"
+# Namespaced per profile so two profiles sharing one .env (per README's "Add
+# another user") don't overwrite each other's Telegraph page / ntfy topic --
+# unqualified GDRIVE_FOLDER_ID etc. had the same bug, and gdrive_token.<profile>.json
+# already used this exact pattern. _LEGACY_KEYS lets an existing unqualified
+# value (e.g. Murali's real setup, written before this change) keep working
+# without forcing a re-setup.
+_SUFFIX = f"_{ACTIVE_PROFILE_ID.upper()}"
+TELEGRAPH_TOKEN_KEY  = f"TELEGRAPH_ACCESS_TOKEN{_SUFFIX}"
+TELEGRAPH_PATH_KEY   = f"TELEGRAPH_PAGE_PATH{_SUFFIX}"
+NTFY_TOPIC_KEY       = f"NTFY_TOPIC{_SUFFIX}"
+_LEGACY_KEYS = {
+    TELEGRAPH_TOKEN_KEY: "TELEGRAPH_ACCESS_TOKEN",
+    TELEGRAPH_PATH_KEY:  "TELEGRAPH_PAGE_PATH",
+    NTFY_TOPIC_KEY:      "NTFY_TOPIC",
+}
 
 TELEGRAPH_API = "https://api.telegra.ph"
 NTFY_BASE     = "https://ntfy.sh"
@@ -42,6 +54,13 @@ def _read_env() -> dict[str, str]:
         if line and not line.startswith("#") and "=" in line:
             k, _, v = line.partition("=")
             out[k.strip()] = v.strip()
+    # Backward compat: if this profile has no namespaced value yet but the
+    # old unqualified key does (e.g. a setup done before profiles existed),
+    # use it rather than treating the profile as "not set up" and creating
+    # a second, competing Telegraph account/ntfy topic for the same person.
+    for namespaced, legacy in _LEGACY_KEYS.items():
+        if not out.get(namespaced) and out.get(legacy):
+            out[namespaced] = out[legacy]
     return out
 
 

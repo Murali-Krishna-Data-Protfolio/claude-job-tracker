@@ -23,6 +23,17 @@ SRC_DIR      = Path(__file__).resolve().parent
 PROJECT_ROOT = SRC_DIR.parent
 PROFILES_DIR = PROJECT_ROOT / "profiles"
 
+# Load .env here too, not just in job_tracker.py/write_jobs.py — otherwise a
+# script that imports config directly (sync_cloud.py --setup, sync_gdrive.py
+# --setup) never sees ACTIVE_PROFILE from .env and silently falls back to the
+# "murali" default below, since profiles/murali.json exists in the repo and
+# _load_profile() has no way to know that wasn't the intended profile.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+except ImportError:
+    pass
+
 # ── Active profile ────────────────────────────────────────────────────────────
 ACTIVE_PROFILE_ID = os.environ.get("ACTIVE_PROFILE", "murali")
 

@@ -29,6 +29,20 @@ FILE_NAME   = "job_applications.xlsx"
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
+# Namespaced per profile — like TOKEN_PATH above, so a second profile sharing
+# this .env doesn't read/overwrite the first profile's Drive folder/file id
+# (same isolation bug the OAuth token cache path was already written to
+# avoid; these three keys just hadn't been given the same treatment).
+_SUFFIX = f"_{ACTIVE_PROFILE_ID.upper()}"
+GDRIVE_FOLDER_KEY = f"GDRIVE_FOLDER_ID{_SUFFIX}"
+GDRIVE_FILE_KEY   = f"GDRIVE_FILE_ID{_SUFFIX}"
+GDRIVE_VIEW_KEY   = f"GDRIVE_VIEW_URL{_SUFFIX}"
+_LEGACY_KEYS = {
+    GDRIVE_FOLDER_KEY: "GDRIVE_FOLDER_ID",
+    GDRIVE_FILE_KEY:   "GDRIVE_FILE_ID",
+    GDRIVE_VIEW_KEY:   "GDRIVE_VIEW_URL",
+}
+
 # ── .env helpers ──────────────────────────────────────────────────────────────
 
 def _read_env() -> dict:
@@ -40,6 +54,11 @@ def _read_env() -> dict:
         if line and not line.startswith("#") and "=" in line:
             k, _, v = line.partition("=")
             out[k.strip()] = v.strip()
+    # Backward compat: an existing unqualified value (set up before profiles
+    # existed) still works rather than being treated as "not set up yet".
+    for namespaced, legacy in _LEGACY_KEYS.items():
+        if not out.get(namespaced) and out.get(legacy):
+            out[namespaced] = out[legacy]
     return out
 
 
@@ -92,7 +111,7 @@ def _get_drive_service():
 def _find_or_create_folder(service) -> str:
     """Returns the Drive folder ID for 'Job Tracker', creating it if needed."""
     env = _read_env()
-    folder_id = env.get("GDRIVE_FOLDER_ID", "")
+    folder_id = env.get(GDRIVE_FOLDER_KEY, "")
     if folder_id:
         return folder_id
 
@@ -110,7 +129,7 @@ def _find_or_create_folder(service) -> str:
         folder = service.files().create(body=meta, fields="id").execute()
         folder_id = folder["id"]
 
-    _write_env_key("GDRIVE_FOLDER_ID", folder_id)
+    _write_env_key(GDRIVE_FOLDER_KEY, folder_id)
     return folder_id
 
 
@@ -119,7 +138,7 @@ def _upload_or_update(service, folder_id: str) -> tuple[str, str]:
     from googleapiclient.http import MediaFileUpload
 
     env = _read_env()
-    file_id = env.get("GDRIVE_FILE_ID", "")
+    file_id = env.get(GDRIVE_FILE_KEY, "")
 
     mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     media = MediaFileUpload(str(EXCEL_PATH), mimetype=mime, resumable=False)
@@ -136,7 +155,7 @@ def _upload_or_update(service, folder_id: str) -> tuple[str, str]:
             body=meta, media_body=media, fields="id"
         ).execute()
         file_id = f["id"]
-        _write_env_key("GDRIVE_FILE_ID", file_id)
+        _write_env_key(GDRIVE_FILE_KEY, file_id)
 
         # Make it readable by anyone with the link
         service.permissions().create(
@@ -185,7 +204,7 @@ def setup_gdrive() -> str:
 
     print("\n[3/3] Uploading job_applications.xlsx...")
     file_id, view_url = _upload_or_update(service, folder_id)
-    _write_env_key("GDRIVE_VIEW_URL", view_url)
+    _write_env_key(GDRIVE_VIEW_KEY, view_url)
 
     print(f"\n=== Setup Complete ===")
     print(f"  Drive link : {view_url}")
@@ -202,7 +221,7 @@ def sync_gdrive(verbose: bool = True) -> str | None:
     Returns the view URL or None if not configured.
     """
     env = _read_env()
-    if not TOKEN_PATH.exists() and not env.get("GDRIVE_FILE_ID"):
+    if not TOKEN_PATH.exists() and not env.get(GDRIVE_FILE_KEY):
         if verbose:
             print("  [gdrive] Not set up yet. Run: python sync_gdrive.py --setup")
         return None
@@ -223,7 +242,7 @@ def sync_gdrive(verbose: bool = True) -> str | None:
         if verbose:
             print(f"  [warn] Google Drive sync failed: {e}")
         env = _read_env()
-        return env.get("GDRIVE_VIEW_URL")
+        return env.get(GDRIVE_VIEW_KEY)
 
 
 if __name__ == "__main__":

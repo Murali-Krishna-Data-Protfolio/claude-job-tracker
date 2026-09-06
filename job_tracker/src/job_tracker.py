@@ -217,22 +217,28 @@ def main():
     all_jobs = fetch_all_jobs()
     print(f"  Total unique jobs fetched: {len(all_jobs)}")
 
-    # --- Step 3: Exclude already-tracked jobs, then drop dead links ------------
+    # --- Step 3: Exclude already-tracked jobs ------------------------------------
     print("\n[3/9] Deduplicating against Excel DB...")
     new_jobs = [j for j in all_jobs if str(j.get("job_id", "")) not in existing_ids]
     print(f"  New (not in DB): {len(new_jobs)}  |  Already in DB: {len(all_jobs) - len(new_jobs)}")
 
-    before_link_check = len(new_jobs)
-    new_jobs = filter_valid_links(new_jobs)
-    dead_links = before_link_check - len(new_jobs)
-
-    # â”€â”€ Step 4: Filter English-speaking roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â”€â”€ Step 4: Filter English-speaking roles, then verify links only for survivors â”€
+    # Classify first: the classifier drops the large majority of jobs (typically
+    # ~80%+), so link-checking beforehand wasted an HTTP probe + 0.2s sleep on
+    # every job the classifier was about to discard anyway. Neither filter reads
+    # the other's output (classification never looks at the URL; the link check
+    # never looks at the classifier's verdict), so this reorder changes nothing
+    # about which jobs end up in the tracker â€” only how much network work it costs.
     if new_jobs:
         print("\n[4/9] Classifying for English-speaking requirement (Claude API + cache)...")
         english_jobs = filter_english_jobs(new_jobs)
     else:
         english_jobs = []
         print("\n[4/9] No new jobs to classify.")
+
+    before_link_check = len(english_jobs)
+    english_jobs = filter_valid_links(english_jobs)
+    dead_links = before_link_check - len(english_jobs)
 
     # â”€â”€ Step 5: Update Excel DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     print("\n[5/9] Writing to Excel DB and rebuilding dashboard...")
