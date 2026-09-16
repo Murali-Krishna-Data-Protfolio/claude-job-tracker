@@ -16,29 +16,52 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
-# Load .env if present (ANTHROPIC_API_KEY)
+# Job titles/companies are full of accented French text (é, è, ç...); some
+# terminals default stdout to cp1252, which crashes on encode instead of
+# just failing to render the glyph. Never let a print() kill the whole run.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
+
+# Load .env if present (this file lives in src/, .env lives at the project root)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 try:
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env", override=True)
+    load_dotenv(PROJECT_ROOT / ".env", override=True)
 except ImportError:
     pass
 
-from config import OUTPUT_PATH, PLATFORMS, SEARCH_QUERIES
+from config import (
+    CANDIDATE_NAME,
+    EMAIL_TO,
+    LOCATION,
+    OUTPUT_PATH,
+    PLATFORMS,
+    RETENTION_WEEKS,
+    SEARCH_QUERIES,
+    TARGET_ROLES,
+)
 from excel_writer import (
     _build_dashboard,
     _ensure_jobs_sheet,
     _load_or_create,
     append_jobs,
     load_existing_job_ids,
+    prune_stale_jobs,
     save_workbook,
 )
-from job_fetcher import fetch_all_jobs, filter_english_jobs
+from job_fetcher import fetch_all_jobs, filter_english_jobs, filter_valid_links
 from sync_bookmarks import sync_bookmarks
 from sync_cloud import sync_cloud
 from sync_gdrive import sync_gdrive
 
-GMAIL_USER = "gkmurali37@gmail.com"
-GMAIL_PASS = os.environ.get("GMAIL_APP_PASSWORD", "dfzuaeyaehqanfqg")
+# GMAIL_USER is the sending account (must match GMAIL_APP_PASSWORD) — always
+# from .env, never hardcoded, so each user's own clone sends from their own
+# Gmail. The recipient defaults to the same address but can differ per profile.
+GMAIL_USER = os.environ.get("GMAIL_USER", "")
+GMAIL_PASS = os.environ.get("GMAIL_APP_PASSWORD", "")
+EMAIL_RECIPIENT = EMAIL_TO or GMAIL_USER
 
 
 def banner(text: str):
@@ -52,8 +75,12 @@ def check_api_key():
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not key or not key.startswith("sk-"):
         print("\n[ERROR] ANTHROPIC_API_KEY not set or invalid.")
-        print("  Set it in C:\\Claude\\job_tracker\\.env  as:")
+        print(f"  Set it in {PROJECT_ROOT / '.env'}  as:")
         print("  ANTHROPIC_API_KEY=sk-ant-...")
+        sys.exit(1)
+    if not GMAIL_USER or not GMAIL_PASS:
+        print("\n[ERROR] GMAIL_USER / GMAIL_APP_PASSWORD not set.")
+        print(f"  Set them in {PROJECT_ROOT / '.env'}  — see .env.example.")
         sys.exit(1)
 
 
@@ -62,7 +89,7 @@ def _count_by_category(jobs: list[dict]) -> dict[str, int]:
     for j in jobs:
         title = j.get("Title") or j.get("title") or ""
         cat = "Other"
-        for kw in ["Data Analyst", "Data Engineer", "Business Analyst", "BI Developer", "Analytics Engineer"]:
+        for kw in TARGET_ROLES:
             if kw.lower() in title.lower():
                 cat = kw
                 break
@@ -70,7 +97,8 @@ def _count_by_category(jobs: list[dict]) -> dict[str, int]:
     return cats
 
 
-def send_db_update_email(added: int, total_before: int, total_after: int, new_jobs: list[dict], elapsed: float):
+def send_db_update_email(added: int, total_before: int, total_after: int, new_jobs: list[dict],
+                          elapsed: float, telegraph_url: str | None = None):
     today_str = date.today().strftime("%B %d, %Y")
     cats = _count_by_category(new_jobs)
 
@@ -114,7 +142,7 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
 <body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f5f7fa;padding:20px;'>
   <div style='background:linear-gradient(135deg,#1F3864,#2E75B6);border-radius:12px 12px 0 0;padding:24px 32px;'>
     <h2 style='color:#fff;margin:0;font-size:18px;'>&#128196; job_db loaded &mdash; {today_str}</h2>
-    <p style='color:#cde4ff;margin:6px 0 0;font-size:13px;'>France &bull; English-speaking roles &bull; Auto-update</p>
+    <p style='color:#cde4ff;margin:6px 0 0;font-size:13px;'>{CANDIDATE_NAME} &bull; {LOCATION} &bull; English-speaking roles &bull; Auto-update</p>
   </div>
   <div style='background:#fff;border:1px solid #e0e0e0;border-top:none;padding:24px 32px;'>
 
@@ -126,6 +154,11 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
         <div style='font-size:13px;color:#666;margin-top:2px;'>Scanned {len(SEARCH_QUERIES)} queries &bull; Completed in {elapsed:.0f}s</div>
       </div>
     </div>
+
+    {f'''<!-- Telegraph link -->
+    <a href='{telegraph_url}' style='display:block;text-align:center;background:#1F3864;color:#fff;
+       text-decoration:none;font-size:14px;font-weight:bold;border-radius:8px;padding:14px 20px;
+       margin-bottom:20px;'>&#128241; Open full job list in browser</a>''' if telegraph_url else ""}
 
     <!-- KPI row -->
     <table width='100%' style='border-collapse:collapse;margin-bottom:20px;'>
@@ -161,7 +194,7 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"job_db loaded â€” {today_str} | +{added} new jobs (Total: {total_after})"
     msg["From"] = GMAIL_USER
-    msg["To"] = GMAIL_USER
+    msg["To"] = EMAIL_RECIPIENT
     msg.attach(MIMEText(html, "html"))
 
     try:
@@ -169,8 +202,8 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
             server.ehlo()
             server.starttls()
             server.login(GMAIL_USER, GMAIL_PASS)
-            server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
-        print(f"  Email sent -> {GMAIL_USER}")
+            server.sendmail(GMAIL_USER, EMAIL_RECIPIENT, msg.as_string())
+        print(f"  Email sent -> {EMAIL_RECIPIENT}")
     except Exception as e:
         print(f"  [warn] Email failed: {e}")
 
@@ -194,12 +227,18 @@ def main():
     all_jobs = fetch_all_jobs()
     print(f"  Total unique jobs fetched: {len(all_jobs)}")
 
-    # â”€â”€ Step 3: Exclude already-tracked jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # --- Step 3: Exclude already-tracked jobs ------------------------------------
     print("\n[3/9] Deduplicating against Excel DB...")
     new_jobs = [j for j in all_jobs if str(j.get("job_id", "")) not in existing_ids]
     print(f"  New (not in DB): {len(new_jobs)}  |  Already in DB: {len(all_jobs) - len(new_jobs)}")
 
-    # â”€â”€ Step 4: Filter English-speaking roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â”€â”€ Step 4: Filter English-speaking roles, then verify links only for survivors â”€
+    # Classify first: the classifier drops the large majority of jobs (typically
+    # ~80%+), so link-checking beforehand wasted an HTTP probe + 0.2s sleep on
+    # every job the classifier was about to discard anyway. Neither filter reads
+    # the other's output (classification never looks at the URL; the link check
+    # never looks at the classifier's verdict), so this reorder changes nothing
+    # about which jobs end up in the tracker â€” only how much network work it costs.
     if new_jobs:
         print("\n[4/9] Classifying for English-speaking requirement (Claude API + cache)...")
         english_jobs = filter_english_jobs(new_jobs)
@@ -207,12 +246,21 @@ def main():
         english_jobs = []
         print("\n[4/9] No new jobs to classify.")
 
-    # â”€â”€ Step 5: Update Excel DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    before_link_check = len(english_jobs)
+    english_jobs = filter_valid_links(english_jobs)
+    dead_links = before_link_check - len(english_jobs)
+
+    # --- Step 5: Update Excel DB, enforce the retention window, rebuild dashboard -
     print("\n[5/9] Writing to Excel DB and rebuilding dashboard...")
     added = append_jobs(wb, english_jobs)
+
+    pruned = prune_stale_jobs(wb)
+    if pruned:
+        print(f"  Retention window: dropped {pruned} row(s) older than {RETENTION_WEEKS} weeks")
+
     _build_dashboard(wb)
     save_workbook(wb)
-    total_after = total_before + added
+    total_after = wb["Jobs"].max_row - 1
 
     # â”€â”€ Step 6: Sync Chrome bookmarks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     print("\n[6/9] Syncing Chrome 'Jobs' bookmarks folder...")
@@ -229,12 +277,13 @@ def main():
     # â”€â”€ Step 9: Send DB update email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     elapsed = time.time() - start
     print("\n[9/9] Sending job_db update email...")
-    send_db_update_email(added, total_before, total_after, english_jobs, elapsed)
+    send_db_update_email(added, total_before, total_after, english_jobs, elapsed, telegraph_url)
 
     # â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     banner("Run Complete")
     print(f"  Queries run       : {len(SEARCH_QUERIES)}")
     print(f"  Jobs fetched      : {len(all_jobs)}")
+    print(f"  Dead links dropped: {dead_links}")
     print(f"  New English jobs  : {len(english_jobs)}")
     print(f"  Added to DB       : {added}")
     print(f"  Total in DB       : {total_after}")

@@ -13,9 +13,11 @@ import os
 import sys
 from pathlib import Path
 
+# This file lives in src/, .env lives at the project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 try:
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env", override=True)
+    load_dotenv(PROJECT_ROOT / ".env", override=True)
 except ImportError:
     pass
 

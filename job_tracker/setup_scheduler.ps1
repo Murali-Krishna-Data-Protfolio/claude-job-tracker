@@ -18,8 +18,8 @@ $Action = New-ScheduledTaskAction `
     -Argument "/c `"$ScriptPath`"" `
     -WorkingDirectory $PSScriptRoot
 
-# Trigger: every day at 08:00
-$Trigger = New-ScheduledTaskTrigger -Daily -At "08:00"
+# Trigger: every day at 08:30
+$Trigger = New-ScheduledTaskTrigger -Daily -At "08:30"
 
 # Settings
 $Settings = New-ScheduledTaskSettingsSet `
@@ -39,7 +39,7 @@ Register-ScheduledTask `
 
 Write-Host ""
 Write-Host "Task '$TaskName' registered successfully." -ForegroundColor Green
-Write-Host "It will run every day at 08:00."
+Write-Host "It will run every day at 08:30."
 Write-Host ""
 Write-Host "To run it immediately:"
 Write-Host "  Start-ScheduledTask -TaskName '$TaskName'"

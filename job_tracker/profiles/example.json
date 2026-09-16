@@ -1,0 +1,23 @@
+{
+  "_comment": "Copy this file to profiles/<your_name>.json, fill in your own details, then set ACTIVE_PROFILE=<your_name> in .env. No code changes needed.",
+
+  "profile_id": "example",
+  "candidate_name": "Your Full Name",
+  "education": "Your degree, University",
+  "location": "France",
+  "country_code": "FR",
+  "languages": {
+    "English": "Native",
+    "French": "Beginner"
+  },
+  "min_salary_hourly_eur": 50,
+  "target_roles": [
+    "Data Analyst",
+    "Data Engineer"
+  ],
+  "skills": [
+    "SQL", "Python", "Power BI", "Tableau", "Excel"
+  ],
+  "email_to": "you@example.com",
+  "english_confidence_threshold": 0.75
+}

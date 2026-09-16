@@ -7,17 +7,19 @@ Called automatically by job_tracker.py after each daily update.
 
 import hashlib
 import json
+import os
 import shutil
 import time
 from pathlib import Path
 
 from openpyxl import load_workbook
 
-from config import OUTPUT_PATH
+from config import OUTPUT_PATH, TARGET_ROLES
 
-BOOKMARKS_PATH = Path(
-    r"C:\Users\gkmur\AppData\Local\Google\Chrome\User Data\Default\Bookmarks"
-)
+# %LOCALAPPDATA% resolves to the *current* Windows user's profile — never
+# hardcode a username here, or this breaks for every user but the original one.
+_LOCALAPPDATA = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+BOOKMARKS_PATH = Path(_LOCALAPPDATA) / "Google" / "Chrome" / "User Data" / "Default" / "Bookmarks"
 LINKEDIN_SEARCH = (
     "https://www.linkedin.com/jobs/search-results/"
     "?keywords=Jobs%20english%20in%20france&origin=SEMANTIC_SEARCH_LANDING_PAGE"
@@ -138,8 +140,7 @@ def sync_bookmarks(verbose: bool = True) -> int:
     categories: dict[str, list[dict]] = {}
     for j in all_jobs:
         cat = "Other"
-        for kw in ["Data Analyst", "Data Engineer", "Business Analyst",
-                   "BI Developer", "Analytics Engineer"]:
+        for kw in TARGET_ROLES:
             if kw.lower() in j["title"].lower():
                 cat = kw
                 break
@@ -154,8 +155,7 @@ def sync_bookmarks(verbose: bool = True) -> int:
     ))
 
     # 2. Category sub-folders
-    for cat_name in ["Data Analyst", "Data Engineer", "Business Analyst",
-                     "BI Developer", "Analytics Engineer", "Other"]:
+    for cat_name in [*TARGET_ROLES, "Other"]:
         jobs_in_cat = categories.get(cat_name, [])
         if not jobs_in_cat:
             continue

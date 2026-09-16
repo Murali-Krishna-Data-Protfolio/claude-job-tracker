@@ -1,8 +1,9 @@
 @echo off
 REM Daily Job Tracker — Entry point for Windows Task Scheduler
-REM Task Scheduler calls this file every day at 08:00
+REM Task Scheduler calls this file every day at 08:30
+REM All source code lives centrally in src\ — see src\job_tracker.py
 
-cd /d "%~dp0"
+cd /d "%~dp0src"
 
 REM Use system Python (or activate venv if you have one)
 REM Uncomment the line below if you use a virtual environment:

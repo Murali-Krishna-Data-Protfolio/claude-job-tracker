@@ -1,0 +1,603 @@
+<title>Job Tracker Data Flow</title>
+
+<style>
+  :root {
+    --bg: #F3F5F8;
+    --surface: #FFFFFF;
+    --surface-2: #EBEEF3;
+    --ink: #14181F;
+    --ink-soft: #4B5563;
+    --ink-faint: #8891A0;
+    --line: #D8DCE3;
+    --accent: #1B6E76;       /* flow / structure */
+    --accent-soft: #E4F0EF;
+    --accent2: #B8721F;      /* config / profile layer */
+    --accent2-soft: #F6ECDC;
+    --good: #2F7D4F;
+    --good-soft: #E4F2E8;
+    --bad: #B23B3B;
+    --bad-soft: #F7E7E5;
+    --shadow: 0 1px 2px rgba(20,24,31,0.04), 0 8px 24px rgba(20,24,31,0.05);
+  }
+
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #10141B;
+      --surface: #171C25;
+      --surface-2: #1D2330;
+      --ink: #E7EAF0;
+      --ink-soft: #AAB2C0;
+      --ink-faint: #6B7282;
+      --line: #2A313D;
+      --accent: #55C2CB;
+      --accent-soft: #17303080;
+      --accent2: #E3A159;
+      --accent2-soft: #3A2E1880;
+      --good: #5FBE86;
+      --good-soft: #1C3A2680;
+      --bad: #E2726B;
+      --bad-soft: #3B221F80;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #10141B;
+    --surface: #171C25;
+    --surface-2: #1D2330;
+    --ink: #E7EAF0;
+    --ink-soft: #AAB2C0;
+    --ink-faint: #6B7282;
+    --line: #2A313D;
+    --accent: #55C2CB;
+    --accent-soft: #17303080;
+    --accent2: #E3A159;
+    --accent2-soft: #3A2E1880;
+    --good: #5FBE86;
+    --good-soft: #1C3A2680;
+    --bad: #E2726B;
+    --bad-soft: #3B221F80;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+  }
+
+  .page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 52px;
+  }
+
+  h1, h2, h3 {
+    font-family: "Archivo", "Segoe UI", system-ui, sans-serif;
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin: 0 0 10px;
+  }
+
+  h1 { font-size: 34px; font-weight: 800; }
+  h2 { font-size: 21px; font-weight: 700; }
+  h3 { font-size: 15px; font-weight: 700; }
+
+  header.hero p.lede {
+    margin: 16px 0 0;
+    max-width: 62ch;
+    font-size: 16.5px;
+    color: var(--ink-soft);
+  }
+
+  .thesis {
+    margin-top: 28px;
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    max-width: 62ch;
+  }
+  .thesis p { margin: 0; font-size: 14.5px; }
+  .thesis strong { color: var(--accent); }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.92em;
+  }
+
+  section { display: flex; flex-direction: column; gap: 16px; }
+
+  .section-head { display: flex; flex-direction: column; gap: 4px; }
+  .section-head p { margin: 0; color: var(--ink-soft); font-size: 14.5px; max-width: 68ch; }
+
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 20px 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .diagram-scroll { overflow-x: auto; }
+  figure svg { display: block; width: 100%; height: auto; min-width: 640px; }
+
+  figcaption {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  figcaption b { color: var(--ink); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.on { background: var(--accent); }
+  .dot.off { background: transparent; border: 1.4px dashed var(--ink-faint); }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  .fact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .fact {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .fact .num {
+    font-family: "Archivo", sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    font-variant-numeric: tabular-nums;
+  }
+  .fact.bad .num { color: var(--bad); }
+  .fact.good .num { color: var(--good); }
+  .fact .label { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+
+  .tree {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+  .tree pre {
+    margin: 0;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    white-space: pre;
+  }
+  .tree .c1 { color: var(--accent); }
+  .tree .c2 { color: var(--accent2); }
+  .tree .dim { color: var(--ink-faint); }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 640px) {
+    .page { padding: 40px 16px 72px; }
+    h1 { font-size: 27px; }
+  }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<div class="page">
+
+  <header class="hero">
+    <p class="eyebrow">job_tracker · src/job_tracker.py</p>
+    <h1>Data workflow — English-only job tracker</h1>
+    <p class="lede">
+      One daily run: pull listings from every enabled source, drop what's already
+      tracked, verify each new job is genuinely English-speaking, write the
+      result to Excel, then fan it out to phone, browser and inbox.
+    </p>
+    <div class="thesis">
+      <p><strong>Fail-closed, not fail-open.</strong> A job reaches the tracker
+      only when Claude actively confirms <code>is_english_role: true</code>
+      at ≥ threshold confidence. Any classifier error now excludes the job —
+      it used to include it by default, which is how French-only listings
+      were slipping through.</p>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow" style="margin-bottom:0">Figure 1</p>
+      <h2>The nine-step pipeline</h2>
+      <p>Two inputs merge at the dedupe gate, one classifier gate decides what
+      gets saved, and the write-out fans across five channels.</p>
+    </div>
+
+    <figure>
+      <div class="legend">
+        <span><span class="dot on"></span> source enabled in this profile</span>
+        <span><span class="dot off"></span> source disabled (config.py → PLATFORMS)</span>
+        <span><span class="swatch" style="background:var(--good)"></span> saved to tracker</span>
+        <span><span class="swatch" style="background:var(--bad)"></span> excluded, not saved</span>
+      </div>
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 900 650" role="img" aria-label="Nine-step pipeline: existing tracker data and freshly fetched jobs from six sources merge at a dedupe step; deduped jobs pass through an English-only classifier gate that saves confirmed English roles and excludes everything else, including errors; saved jobs are written to Excel and then fanned out to Chrome bookmarks, a Telegraph mobile page with ntfy push, Google Drive, and an email digest.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+            </marker>
+            <marker id="arrowBad" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--bad)" />
+            </marker>
+            <marker id="arrowGood" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--good)" />
+            </marker>
+          </defs>
+
+          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9.5" text-anchor="middle">
+            <!-- source chips -->
+            <g>
+              <!-- disabled: Indeed, WTTJ, Talent.io, F.Travail -->
+              <g stroke="var(--ink-faint)" stroke-dasharray="3 3" fill="none">
+                <rect x="369" y="20" width="72" height="36" rx="6"/>
+                <rect x="451" y="20" width="72" height="36" rx="6"/>
+                <rect x="533" y="20" width="72" height="36" rx="6"/>
+                <rect x="615" y="20" width="72" height="36" rx="6"/>
+              </g>
+              <g fill="var(--ink-faint)">
+                <text x="405" y="42">Indeed</text>
+                <text x="487" y="42">WTTJ</text>
+                <text x="569" y="42">Talent.io</text>
+                <text x="651" y="42">F.Travail</text>
+              </g>
+              <!-- enabled: Adzuna, JSearch -->
+              <g stroke="var(--accent)" fill="none">
+                <rect x="697" y="20" width="72" height="36" rx="6"/>
+                <rect x="779" y="20" width="72" height="36" rx="6"/>
+              </g>
+              <g fill="var(--accent)" font-weight="500">
+                <text x="733" y="42">Adzuna</text>
+                <text x="815" y="42">JSearch</text>
+              </g>
+            </g>
+
+            <!-- chip -> stage2 arrows -->
+            <g stroke="var(--ink-faint)" fill="none">
+              <line x1="405" y1="56" x2="405" y2="86" marker-end="url(#arrow)"/>
+              <line x1="487" y1="56" x2="487" y2="86" marker-end="url(#arrow)"/>
+              <line x1="569" y1="56" x2="569" y2="86" marker-end="url(#arrow)"/>
+              <line x1="651" y1="56" x2="651" y2="86" marker-end="url(#arrow)"/>
+            </g>
+            <g stroke="var(--accent)" fill="none">
+              <line x1="733" y1="56" x2="733" y2="86" marker-end="url(#arrow)"/>
+              <line x1="815" y1="56" x2="815" y2="86" marker-end="url(#arrow)"/>
+            </g>
+
+            <!-- stage 1 + 2 -->
+            <rect x="40" y="90" width="260" height="60" rx="10" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="170" y="115" fill="var(--ink)" font-weight="600" font-size="11">① Load tracker DB</text>
+            <text x="170" y="132" fill="var(--ink-soft)" font-size="9">outputs/&lt;profile&gt;/job_applications.xlsx</text>
+
+            <rect x="360" y="90" width="500" height="60" rx="10" fill="var(--surface-2)" stroke="var(--accent)"/>
+            <text x="610" y="115" fill="var(--ink)" font-weight="600" font-size="11">② Fetch all enabled sources</text>
+            <text x="610" y="132" fill="var(--ink-soft)" font-size="9">5 target-role queries × 2 live sources</text>
+
+            <!-- merge into dedupe -->
+            <g stroke="var(--ink-faint)" fill="none">
+              <path d="M170,150 C170,180 330,190 340,210" marker-end="url(#arrow)"/>
+              <path d="M610,150 C610,180 560,190 555,210" marker-end="url(#arrow)"/>
+            </g>
+            <text x="205" y="192" fill="var(--ink-faint)" font-size="9" text-anchor="start">existing_ids</text>
+            <text x="640" y="192" fill="var(--ink-faint)" font-size="9" text-anchor="end">all_jobs (raw)</text>
+
+            <rect x="280" y="210" width="340" height="56" rx="10" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="450" y="234" fill="var(--ink)" font-weight="600" font-size="11">③ Dedupe by job_id</text>
+            <text x="450" y="250" fill="var(--ink-soft)" font-size="9">drop anything already in the DB</text>
+
+            <line x1="450" y1="266" x2="450" y2="300" stroke="var(--ink-faint)" marker-end="url(#arrow)"/>
+            <text x="465" y="288" fill="var(--ink-faint)" font-size="9" text-anchor="start">new_jobs</text>
+
+            <!-- classifier gate -->
+            <rect x="280" y="300" width="340" height="76" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
+            <text x="450" y="323" fill="var(--accent)" font-weight="700" font-size="12">④ Classify — English only</text>
+            <text x="450" y="339" fill="var(--ink-soft)" font-size="9">Claude Haiku · cached profile prompt</text>
+            <text x="450" y="353" fill="var(--ink-soft)" font-size="9">2 attempts, strict JSON extraction</text>
+            <text x="450" y="367" fill="var(--ink-faint)" font-size="8.5" font-style="italic">see Figure 2 — this gate is the fix</text>
+
+            <!-- pass -->
+            <line x1="450" y1="376" x2="450" y2="420" stroke="var(--good)" stroke-width="1.6" marker-end="url(#arrowGood)"/>
+            <text x="465" y="400" fill="var(--good)" font-size="9" font-weight="500" text-anchor="start">PASS ≥ 0.75</text>
+
+            <!-- fail branch -->
+            <path d="M620,338 C670,338 680,338 700,352" stroke="var(--bad)" stroke-width="1.6" fill="none" marker-end="url(#arrowBad)"/>
+            <rect x="700" y="326" width="160" height="52" rx="8" fill="var(--bad-soft)" stroke="var(--bad)"/>
+            <text x="780" y="347" fill="var(--bad)" font-weight="600" font-size="10">Excluded</text>
+            <text x="780" y="361" fill="var(--bad)" font-size="8.5">low conf. / not English /</text>
+            <text x="780" y="372" fill="var(--bad)" font-size="8.5">classifier error → dropped</text>
+
+            <!-- stage 5 -->
+            <rect x="280" y="420" width="340" height="58" rx="10" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="450" y="444" fill="var(--ink)" font-weight="600" font-size="11">⑤ Write Excel + rebuild Dashboard</text>
+            <text x="450" y="460" fill="var(--ink-soft)" font-size="9">Jobs table + KPI charts (openpyxl)</text>
+
+            <!-- fan out node -->
+            <g stroke="var(--ink-faint)" fill="none">
+              <path d="M450,478 C450,505 150,530 150,558" marker-end="url(#arrow)"/>
+              <path d="M450,478 C450,505 350,530 350,558" marker-end="url(#arrow)"/>
+              <path d="M450,478 C450,505 550,530 550,558" marker-end="url(#arrow)"/>
+              <path d="M450,478 C450,505 750,530 750,558" marker-end="url(#arrow)"/>
+            </g>
+
+            <rect x="60" y="558" width="180" height="58" rx="10" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="150" y="582" fill="var(--ink)" font-weight="600" font-size="10.5">⑥ Chrome bookmarks</text>
+            <text x="150" y="598" fill="var(--ink-soft)" font-size="8.5">"Jobs" folder, per role</text>
+
+            <rect x="260" y="558" width="180" height="58" rx="10" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="350" y="580" fill="var(--ink)" font-weight="600" font-size="10.5">⑦ Telegraph + ntfy</text>
+            <text x="350" y="595" fill="var(--ink-soft)" font-size="8.5">mobile page +</text>
+            <text x="350" y="607" fill="var(--ink-soft)" font-size="8.5">push notification</text>
+
+            <rect x="460" y="558" width="180" height="58" rx="10" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="550" y="582" fill="var(--ink)" font-weight="600" font-size="10.5">⑧ Google Drive</text>
+            <text x="550" y="598" fill="var(--ink-soft)" font-size="8.5">xlsx upload, stable link</text>
+
+            <rect x="660" y="558" width="180" height="58" rx="10" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="750" y="582" fill="var(--ink)" font-weight="600" font-size="10.5">⑨ Email digest</text>
+            <text x="750" y="598" fill="var(--ink-soft)" font-size="8.5">Gmail SMTP, run summary</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        Steps ① and ② run independently, then merge at ③. Every job that
+        reaches ⑤ has been individually confirmed English-speaking — nothing
+        downstream re-checks language, so the gate at ④ is the only place
+        this guarantee can break.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow" style="margin-bottom:0">Figure 2</p>
+      <h2>The fix, at the exact line it happened</h2>
+      <p>The classifier itself was rarely wrong. What broke was what happened
+      after a parse error — and that path fired on the majority of calls.</p>
+    </div>
+
+    <figure>
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 900 290" role="img" aria-label="Before and after comparison of the English classifier's error handling. Before: Claude's response fails to parse as JSON because of trailing text after the closing brace, the code catches the exception, sets a fake 0.5 confidence, and adds the job anyway — fail open. After: a JSON decoder that extracts just the first valid object ignores the trailing text and parses correctly in almost every case; on any remaining error the job is excluded and logged instead of guessed in — fail closed.">
+            <defs>
+              <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+              </marker>
+            </defs>
+            <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" text-anchor="middle">
+
+              <!-- column headers -->
+              <text x="220" y="24" fill="var(--bad)" font-weight="700" font-size="12">OLD — fail open</text>
+              <text x="680" y="24" fill="var(--good)" font-weight="700" font-size="12">NEW — fail closed</text>
+              <line x1="450" y1="10" x2="450" y2="270" stroke="var(--line)" stroke-dasharray="2 4"/>
+
+              <!-- OLD column -->
+              <g stroke="var(--ink-faint)" fill="none">
+                <rect x="90" y="42" width="260" height="40" rx="8"/>
+              </g>
+              <text x="220" y="66" fill="var(--ink)" font-size="9.5">Claude response + trailing text</text>
+
+              <line x1="220" y1="82" x2="220" y2="106" stroke="var(--ink-faint)" marker-end="url(#arrow2)"/>
+
+              <g stroke="var(--bad)" fill="none">
+                <rect x="90" y="106" width="260" height="40" rx="8"/>
+              </g>
+              <text x="220" y="130" fill="var(--bad)" font-size="9.5">json.loads() → "Extra data"</text>
+
+              <line x1="220" y1="146" x2="220" y2="170" stroke="var(--bad)" marker-end="url(#arrow2)"/>
+              <text x="235" y="163" fill="var(--bad)" font-size="8.5" text-anchor="start">except: confidence = 0.5</text>
+
+              <g fill="var(--bad-soft)" stroke="var(--bad)" stroke-width="1.6">
+                <rect x="90" y="170" width="260" height="46" rx="8"/>
+              </g>
+              <text x="220" y="192" fill="var(--bad)" font-weight="600" font-size="10">Added anyway</text>
+              <text x="220" y="206" fill="var(--bad)" font-size="8.5">language never actually verified</text>
+
+              <line x1="220" y1="216" x2="220" y2="240" stroke="var(--bad)" marker-end="url(#arrow2)"/>
+              <text x="220" y="256" fill="var(--bad)" font-weight="700" font-size="11">436 / 523 rows this way</text>
+              <text x="220" y="270" fill="var(--ink-faint)" font-size="8.5">measured in the live tracker — 83%</text>
+
+              <!-- NEW column -->
+              <g stroke="var(--ink-faint)" fill="none">
+                <rect x="550" y="42" width="260" height="40" rx="8"/>
+              </g>
+              <text x="680" y="66" fill="var(--ink)" font-size="9.5">Claude response + trailing text</text>
+
+              <line x1="680" y1="82" x2="680" y2="106" stroke="var(--ink-faint)" marker-end="url(#arrow2)"/>
+
+              <g stroke="var(--accent)" fill="none">
+                <rect x="550" y="106" width="260" height="40" rx="8"/>
+              </g>
+              <text x="680" y="126" fill="var(--accent)" font-size="9.5">JSONDecoder.raw_decode()</text>
+              <text x="680" y="139" fill="var(--accent)" font-size="8.5">reads first object, ignores rest</text>
+
+              <line x1="680" y1="146" x2="680" y2="170" stroke="var(--ink-faint)" marker-end="url(#arrow2)"/>
+              <text x="680" y="163" fill="var(--ink-soft)" font-size="8.5">is_english &amp; confidence ≥ 0.75 ?</text>
+
+              <path d="M680,170 C680,190 620,195 600,210" stroke="var(--good)" marker-end="url(#arrow2)" fill="none"/>
+              <path d="M680,170 C680,190 740,195 760,210" stroke="var(--bad)" marker-end="url(#arrow2)" fill="none"/>
+              <text x="595" y="203" fill="var(--good)" font-size="8.5" text-anchor="end">yes</text>
+              <text x="765" y="203" fill="var(--bad)" font-size="8.5" text-anchor="start">no / error</text>
+
+              <g fill="var(--good-soft)" stroke="var(--good)" stroke-width="1.6">
+                <rect x="500" y="210" width="140" height="40" rx="8"/>
+              </g>
+              <text x="570" y="234" fill="var(--good)" font-weight="600" font-size="10">Saved</text>
+
+              <g fill="var(--surface-2)" stroke="var(--ink-faint)">
+                <rect x="720" y="210" width="140" height="40" rx="8"/>
+              </g>
+              <text x="790" y="228" fill="var(--ink-soft)" font-weight="600" font-size="10">Excluded</text>
+              <text x="790" y="241" fill="var(--ink-faint)" font-size="8">logged with reason</text>
+            </g>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Root cause:</b> Claude occasionally adds a short sentence after the
+        closing <code>}</code>. <code>json.loads()</code> rejects that as
+        malformed; the old <code>except</code> block then added the job with
+        a fabricated <code>0.5</code> confidence instead of re-checking it —
+        which is how French-only listings reached the tracker. The fix reads
+        with <code>json.JSONDecoder().raw_decode()</code>, which stops at the
+        end of the valid object, and excludes on any real failure instead of
+        guessing.
+      </figcaption>
+    </figure>
+
+    <div class="fact-grid">
+      <div class="fact bad"><div class="num">436 / 523</div><div class="label">rows previously added via the fail-open fallback (existing tracker data — not yet re-verified)</div></div>
+      <div class="fact good"><div class="num">2 tries</div><div class="label">a job gets before it's excluded — a transient hiccup no longer costs a real English role</div></div>
+      <div class="fact"><div class="num">≥ 0.75</div><div class="label">confidence threshold, set per profile in <code>profiles/&lt;id&gt;.json</code></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow" style="margin-bottom:0">Figure 3</p>
+      <h2>One codebase, many candidates</h2>
+      <p>Every candidate-specific fact — name, target roles, skills, salary
+      floor, recipient inbox — now lives in a profile file, not in source.</p>
+    </div>
+
+    <figure>
+      <div class="diagram-scroll">
+        <svg viewBox="0 0 900 230" role="img" aria-label="Profile architecture: env file with secrets and profiles slash id dot json with candidate data both feed into config dot py, which every module in the src folder imports from, so no source file contains hardcoded candidate data.">
+          <defs>
+            <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
+            </marker>
+          </defs>
+          <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="10" text-anchor="middle">
+
+            <rect x="20" y="20" width="220" height="46" rx="8" fill="var(--surface-2)" stroke="var(--ink-faint)"/>
+            <text x="130" y="40" fill="var(--ink)" font-size="10">.env</text>
+            <text x="130" y="54" fill="var(--ink-soft)" font-size="8.5">secrets · ACTIVE_PROFILE</text>
+
+            <rect x="20" y="82" width="220" height="46" rx="8" fill="var(--accent2-soft)" stroke="var(--accent2)"/>
+            <text x="130" y="102" fill="var(--accent2)" font-size="10">profiles/&lt;id&gt;.json</text>
+            <text x="130" y="116" fill="var(--accent2)" font-size="8.5">candidate data</text>
+
+            <path d="M240,43 C280,43 280,90 320,90" stroke="var(--ink-faint)" fill="none" marker-end="url(#arrow3)"/>
+            <path d="M240,105 C280,105 280,90 320,90" stroke="var(--accent2)" fill="none" marker-end="url(#arrow3)"/>
+
+            <rect x="320" y="66" width="150" height="48" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
+            <text x="395" y="86" fill="var(--accent)" font-weight="700" font-size="10.5">config.py</text>
+            <text x="395" y="100" fill="var(--accent)" font-size="8.5">derives + validates</text>
+
+            <g stroke="var(--ink-faint)" fill="none">
+              <path d="M470,90 C520,90 480,20 550,20" marker-end="url(#arrow3)"/>
+              <path d="M470,90 C520,90 500,52 570,52" marker-end="url(#arrow3)"/>
+              <path d="M470,90 C500,90 520,90 592,90" marker-end="url(#arrow3)"/>
+              <path d="M470,90 C500,90 500,128 570,128" marker-end="url(#arrow3)"/>
+              <path d="M470,90 C520,90 480,160 550,160" marker-end="url(#arrow3)"/>
+              <path d="M470,90 C540,90 500,192 570,192" marker-end="url(#arrow3)"/>
+            </g>
+
+            <g fill="var(--surface-2)" stroke="var(--ink-faint)">
+              <rect x="550" y="4"   width="330" height="30" rx="6"/>
+              <rect x="570" y="38"  width="310" height="30" rx="6"/>
+              <rect x="592" y="72"  width="288" height="30" rx="6"/>
+              <rect x="570" y="106" width="310" height="30" rx="6"/>
+              <rect x="550" y="140" width="330" height="30" rx="6"/>
+              <rect x="570" y="174" width="310" height="30" rx="6"/>
+            </g>
+            <g fill="var(--ink)" font-size="9.5" text-anchor="start">
+              <text x="562" y="23">job_fetcher.py — fetch + English classifier</text>
+              <text x="582" y="57">profile_cache.py — builds Claude system prompt</text>
+              <text x="604" y="91">excel_writer.py — Jobs sheet + Dashboard</text>
+              <text x="582" y="125">job_tracker.py — orchestrator + email digest</text>
+              <text x="562" y="159">sync_cloud.py / sync_bookmarks.py — mirrors</text>
+              <text x="582" y="193">sync_gdrive.py — Drive upload, per-profile token</text>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        Add a person: copy <code>profiles/example.json</code>, fill it in, set
+        <code>ACTIVE_PROFILE</code> in <code>.env</code>. Every module above
+        reads through <code>config.py</code> — none of them import a name,
+        role list, or inbox directly.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow" style="margin-bottom:0">Reference</p>
+      <h2>Where the code lives</h2>
+      <p>All source is centralized under <code>src/</code>; everything
+      candidate-specific sits outside it, in <code>profiles/</code> and <code>.env</code>.</p>
+    </div>
+    <div class="tree">
+<pre>job_tracker/
+├── <span class="c1">src/</span>                      <span class="dim"># all source code — one folder</span>
+│   ├── job_tracker.py        <span class="dim">main pipeline, steps ①–⑨</span>
+│   ├── job_fetcher.py        <span class="dim">fetch + English classifier (fail-closed)</span>
+│   ├── excel_writer.py       <span class="dim">Jobs sheet + Dashboard charts</span>
+│   ├── profile_cache.py      <span class="dim">builds Claude prompt from active profile</span>
+│   ├── config.py             <span class="dim">loads .env + profiles/&lt;id&gt;.json</span>
+│   ├── sync_bookmarks.py     <span class="dim">Chrome bookmarks (portable, %LOCALAPPDATA%)</span>
+│   ├── sync_cloud.py         <span class="dim">Telegraph page + ntfy push</span>
+│   ├── sync_gdrive.py        <span class="dim">Google Drive upload</span>
+│   └── write_jobs.py         <span class="dim">entry point for the cloud/MCP route</span>
+├── <span class="c2">profiles/</span>
+│   ├── example.json          <span class="dim">template for a new user</span>
+│   └── murali.json
+├── outputs/
+│   ├── run_log.txt
+│   └── &lt;profile_id&gt;/job_applications.xlsx
+├── docs/data-workflow.html   <span class="dim">this page</span>
+├── .env                       <span class="dim">secrets — gitignored</span>
+├── .env.example
+├── run_daily.bat              <span class="dim">Task Scheduler entry point</span>
+└── setup_scheduler.ps1</pre>
+    </div>
+  </section>
+
+  <footer>
+    job_tracker · candidate profile: <span class="mono">profiles/murali.json</span> ·
+    diagram reflects <span class="mono">src/job_tracker.py</span> as of this session
+  </footer>
+
+</div>
