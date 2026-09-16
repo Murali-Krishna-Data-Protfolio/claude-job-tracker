@@ -92,7 +92,7 @@ completely separate from any other profile's data.
 powershell -ExecutionPolicy Bypass -File setup_scheduler.ps1
 ```
 
-Registers a task that runs `run_daily.bat` every day at 08:00, which in turn
+Registers a task that runs `run_daily.bat` every day at 08:30, which in turn
 runs `src\job_tracker.py` and appends to `outputs\run_log.txt`.
 
 ## Optional one-time setups
