@@ -5,7 +5,7 @@ Creates and updates the job_applications.xlsx with:
 """
 
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import openpyxl
@@ -26,7 +26,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from config import OUTPUT_PATH, STATUS_CHOICES, TARGET_ROLES
+from config import OUTPUT_PATH, RETENTION_WEEKS, STATUS_CHOICES, TARGET_ROLES
 
 # ── Colour palette (Murali's Power BI / dark-blue theme) ──────────────────────
 C_HEADER_BG   = "1F3864"   # dark navy
@@ -252,6 +252,51 @@ def rewrite_jobs_sheet(wb: Workbook, keep_rows: list[dict]) -> None:
         )
         ws.add_data_validation(dv)
         dv.add(f"G2:G{ws.max_row}")
+
+
+def prune_stale_jobs(wb: Workbook, retention_weeks: int = RETENTION_WEEKS) -> int:
+    """
+    Discard every Jobs-sheet row whose Date_Found is strictly older than
+    `retention_weeks` from today — a rolling window, not an ever-growing
+    archive. Uses rewrite_jobs_sheet (rebuild, not ws.delete_rows()) for
+    the same reason verify_links.py/reclassify_legacy.py do; see that
+    function's docstring for why delete_rows() isn't safe here.
+
+    A row whose Date_Found can't be parsed is KEPT, not discarded — same
+    fail-safe-toward-keeping-data principle as the link-check asymmetry
+    (check_url.py): being unsure whether a row is stale is not the same as
+    knowing it is, and silently losing a row is worse than keeping one
+    that looks a little old.
+
+    Returns the number of rows discarded.
+    """
+    if "Jobs" not in wb.sheetnames:
+        return 0
+    ws = wb["Jobs"]
+    if ws.max_row < 2:
+        return 0
+
+    cutoff = date.today() - timedelta(weeks=retention_weeks)
+    keep_rows: list[dict] = []
+    discarded = 0
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[0]:
+            continue
+        row_dict = dict(zip(COLUMNS, row))
+        try:
+            found_date = date.fromisoformat(str(row_dict.get("Date_Found"))[:10])
+        except ValueError:
+            keep_rows.append(row_dict)
+            continue
+        if found_date < cutoff:
+            discarded += 1
+        else:
+            keep_rows.append(row_dict)
+
+    if discarded:
+        rewrite_jobs_sheet(wb, keep_rows)
+    return discarded
 
 
 def _build_dashboard(wb: Workbook):

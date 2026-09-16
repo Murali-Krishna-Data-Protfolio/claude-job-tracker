@@ -32,13 +32,23 @@ try:
 except ImportError:
     pass
 
-from config import CANDIDATE_NAME, EMAIL_TO, LOCATION, OUTPUT_PATH, PLATFORMS, SEARCH_QUERIES, TARGET_ROLES
+from config import (
+    CANDIDATE_NAME,
+    EMAIL_TO,
+    LOCATION,
+    OUTPUT_PATH,
+    PLATFORMS,
+    RETENTION_WEEKS,
+    SEARCH_QUERIES,
+    TARGET_ROLES,
+)
 from excel_writer import (
     _build_dashboard,
     _ensure_jobs_sheet,
     _load_or_create,
     append_jobs,
     load_existing_job_ids,
+    prune_stale_jobs,
     save_workbook,
 )
 from job_fetcher import fetch_all_jobs, filter_english_jobs, filter_valid_links
@@ -240,12 +250,17 @@ def main():
     english_jobs = filter_valid_links(english_jobs)
     dead_links = before_link_check - len(english_jobs)
 
-    # â”€â”€ Step 5: Update Excel DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # --- Step 5: Update Excel DB, enforce the retention window, rebuild dashboard -
     print("\n[5/9] Writing to Excel DB and rebuilding dashboard...")
     added = append_jobs(wb, english_jobs)
+
+    pruned = prune_stale_jobs(wb)
+    if pruned:
+        print(f"  Retention window: dropped {pruned} row(s) older than {RETENTION_WEEKS} weeks")
+
     _build_dashboard(wb)
     save_workbook(wb)
-    total_after = total_before + added
+    total_after = wb["Jobs"].max_row - 1
 
     # â”€â”€ Step 6: Sync Chrome bookmarks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     print("\n[6/9] Syncing Chrome 'Jobs' bookmarks folder...")

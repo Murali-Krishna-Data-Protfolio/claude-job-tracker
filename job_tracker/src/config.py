@@ -62,6 +62,13 @@ EMAIL_TO       = PROFILE.get("email_to") or os.environ.get("GMAIL_USER", "")
 # ── English filter ─────────────────────────────────────────────────────────────
 ENGLISH_CONFIDENCE_THRESHOLD = float(PROFILE.get("english_confidence_threshold", 0.75))
 
+# ── Retention window ───────────────────────────────────────────────────────────
+# Rolling window, strictly enforced: every run discards Jobs-sheet rows whose
+# Date_Found is older than this many weeks. Keeps the tracker current instead
+# of an ever-growing archive, and keeps the Telegraph mobile sync under its
+# CONTENT_TOO_BIG ceiling as a side effect.
+RETENTION_WEEKS = int(PROFILE.get("retention_weeks", 4))
+
 # ── Output (per-profile, so multiple profiles never overwrite each other) ─────
 OUTPUT_DIR  = PROJECT_ROOT / "outputs" / ACTIVE_PROFILE_ID
 OUTPUT_PATH = str(OUTPUT_DIR / "job_applications.xlsx")
