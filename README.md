@@ -52,15 +52,18 @@ C:\Claude\
 │   └── outputs\
 │       └── job_applications.xlsx      ← live Excel tracker + dashboard
 │
-└── resumes\
-    ├── generate_resumes.py            ← generates all 4 role PDFs
-    ├── gen_ae_de.py                   ← Analytics Engineer + Data Engineer only
-    ├── Profile.pdf                    ← source profile (update → re-run generator)
-    └── output\
-        ├── Resume_DataAnalyst_MuraliKrishna.pdf
-        ├── Resume_DataEngineer_MuraliKrishna.pdf
-        ├── Resume_BusinessAnalyst_MuraliKrishna.pdf
-        └── Resume_AnalyticsEngineer_MuraliKrishna.pdf
+├── resumes\
+│   ├── generate_resumes.py            ← generates all 4 role PDFs
+│   ├── gen_ae_de.py                   ← Analytics Engineer + Data Engineer only
+│   ├── Profile.pdf                    ← source profile (update → re-run generator)
+│   └── output\
+│       ├── Resume_DataAnalyst_MuraliKrishna.pdf
+│       ├── Resume_DataEngineer_MuraliKrishna.pdf
+│       ├── Resume_BusinessAnalyst_MuraliKrishna.pdf
+│       └── Resume_AnalyticsEngineer_MuraliKrishna.pdf
+│
+└── portfolio\
+    └── index.html                     ← single-file portfolio site (deployed via GitHub Pages)
 ```
 
 ---
@@ -176,6 +179,21 @@ Update `resumes\Profile.pdf` first whenever your profile changes, then re-run.
 
 ---
 
+## Portfolio site
+
+A single-file, animated portfolio (`portfolio/index.html`) built from the same profile data as the resumes — About, Experience, Selected Projects, Skills, and Certifications sections, dark/light theme aware.
+
+**Preview locally:**
+```powershell
+start C:\Claude\portfolio\index.html
+```
+
+**Deploy:** the workflow at `.github/workflows/deploy-murali-portfolio.yml` publishes `portfolio/` to GitHub Pages automatically on every push to `main` that touches the folder (or via manual `workflow_dispatch`). One-time setup: in the GitHub repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**. The site will then be live at `https://murali-krishna-data-protfolio.github.io/claude-job-tracker/`.
+
+Keep it in sync with `resumes\Profile.pdf` — update both when your experience, skills, or certifications change.
+
+---
+
 ## Common commands
 
 | What | Command |
@@ -185,5 +203,6 @@ Update `resumes\Profile.pdf` first whenever your profile changes, then re-run.
 | Force upload to Google Drive | `python C:\Claude\job_tracker\sync_gdrive.py` |
 | Sync Chrome bookmarks only | `python C:\Claude\job_tracker\sync_bookmarks.py` |
 | Generate resumes | `cd C:\Claude\resumes && python generate_resumes.py` |
+| Preview portfolio site | `start C:\Claude\portfolio\index.html` |
 | Install dependencies | `pip install -r C:\Claude\job_tracker\requirements.txt` |
 | Open Excel tracker | `C:\Claude\job_tracker\outputs\job_applications.xlsx` |
