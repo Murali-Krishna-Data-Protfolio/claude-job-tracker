@@ -12,9 +12,19 @@ import smtplib
 import sys
 import time
 from datetime import date, datetime
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+
+# Job titles/companies are full of accented French text (é, è, ç...); some
+# terminals default stdout to cp1252, which crashes on encode instead of
+# just failing to render the glyph. Never let a print() kill the whole run.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
 
 # Load .env if present (ANTHROPIC_API_KEY)
 try:
@@ -23,16 +33,17 @@ try:
 except ImportError:
     pass
 
-from config import OUTPUT_PATH, PLATFORMS, SEARCH_QUERIES
+from config import JOB_RETENTION_DAYS, OUTPUT_PATH, PLATFORMS, SEARCH_QUERIES
 from excel_writer import (
     _build_dashboard,
     _ensure_jobs_sheet,
     _load_or_create,
     append_jobs,
     load_existing_job_ids,
+    prune_stale_jobs,
     save_workbook,
 )
-from job_fetcher import fetch_all_jobs, filter_english_jobs
+from job_fetcher import fetch_all_jobs, filter_english_jobs, filter_valid_links
 from sync_bookmarks import sync_bookmarks
 from sync_cloud import sync_cloud
 from sync_gdrive import sync_gdrive
@@ -71,7 +82,8 @@ def _count_by_category(jobs: list[dict]) -> dict[str, int]:
     return cats
 
 
-def send_db_update_email(added: int, total_before: int, total_after: int, new_jobs: list[dict], elapsed: float):
+def send_db_update_email(added: int, total_before: int, total_after: int, new_jobs: list[dict], elapsed: float,
+                          attachment_path: str | None = None, telegraph_url: str | None = None):
     today_str = date.today().strftime("%B %d, %Y")
     cats = _count_by_category(new_jobs)
 
@@ -128,6 +140,11 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
       </div>
     </div>
 
+    {f'''<!-- Telegraph link -->
+    <a href='{telegraph_url}' style='display:block;text-align:center;background:#1F3864;color:#fff;
+       text-decoration:none;font-size:14px;font-weight:bold;border-radius:8px;padding:14px 20px;
+       margin-bottom:20px;'>&#128241; Open full job list in browser</a>''' if telegraph_url else ""}
+
     <!-- KPI row -->
     <table width='100%' style='border-collapse:collapse;margin-bottom:20px;'>
       <tr>
@@ -159,11 +176,24 @@ def send_db_update_email(added: int, total_before: int, total_after: int, new_jo
   </div>
 </body></html>"""
 
-    msg = MIMEMultipart("alternative")
+    # "mixed" (not "alternative") because an attachment is joining the HTML
+    # body — "alternative" is for interchangeable renderings of the same
+    # content (e.g. plain-text vs HTML), not for adding a separate file.
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = f"job_db loaded â€” {today_str} | +{added} new jobs (Total: {total_after})"
     msg["From"] = GMAIL_USER
     msg["To"] = RECIPIENT_EMAIL
     msg.attach(MIMEText(html, "html"))
+
+    if attachment_path and Path(attachment_path).exists():
+        try:
+            part = MIMEBase("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            part.set_payload(Path(attachment_path).read_bytes())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{Path(attachment_path).name}"')
+            msg.attach(part)
+        except Exception as e:
+            print(f"  [warn] Could not attach {attachment_path}: {e}")
 
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
@@ -200,7 +230,12 @@ def main():
     new_jobs = [j for j in all_jobs if str(j.get("job_id", "")) not in existing_ids]
     print(f"  New (not in DB): {len(new_jobs)}  |  Already in DB: {len(all_jobs) - len(new_jobs)}")
 
-    # â”€â”€ Step 4: Filter English-speaking roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â”€â”€ Step 4: Filter English-speaking roles, then verify links only for survivors â”€
+    # Classify first: the classifier drops the large majority of jobs, so
+    # link-checking beforehand would waste an HTTP probe + 0.2s sleep on every
+    # job the classifier was about to discard anyway. Neither filter reads the
+    # other's output, so this order changes nothing about which jobs end up in
+    # the tracker â€” only how much network work it costs.
     if new_jobs:
         print("\n[4/9] Classifying for English-speaking requirement (Claude API + cache)...")
         english_jobs = filter_english_jobs(new_jobs)
@@ -208,12 +243,19 @@ def main():
         english_jobs = []
         print("\n[4/9] No new jobs to classify.")
 
+    before_link_check = len(english_jobs)
+    english_jobs = filter_valid_links(english_jobs)
+    dead_links = before_link_check - len(english_jobs)
+
     # â”€â”€ Step 5: Update Excel DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     print("\n[5/9] Writing to Excel DB and rebuilding dashboard...")
     added = append_jobs(wb, english_jobs)
+    pruned = prune_stale_jobs(wb, JOB_RETENTION_DAYS)
+    if pruned:
+        print(f"  Pruned {pruned} stale Saved job(s) older than {JOB_RETENTION_DAYS} days")
     _build_dashboard(wb)
     save_workbook(wb)
-    total_after = total_before + added
+    total_after = total_before + added - pruned
 
     # â”€â”€ Step 6: Sync Chrome bookmarks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     print("\n[6/9] Syncing Chrome 'Jobs' bookmarks folder...")
@@ -230,14 +272,17 @@ def main():
     # â”€â”€ Step 9: Send DB update email â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     elapsed = time.time() - start
     print("\n[9/9] Sending job_db update email...")
-    send_db_update_email(added, total_before, total_after, english_jobs, elapsed)
+    send_db_update_email(added, total_before, total_after, english_jobs, elapsed,
+                          attachment_path=OUTPUT_PATH, telegraph_url=telegraph_url)
 
     # â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     banner("Run Complete")
     print(f"  Queries run       : {len(SEARCH_QUERIES)}")
     print(f"  Jobs fetched      : {len(all_jobs)}")
+    print(f"  Dead links dropped: {dead_links}")
     print(f"  New English jobs  : {len(english_jobs)}")
     print(f"  Added to DB       : {added}")
+    print(f"  Pruned (stale)    : {pruned}  (>{JOB_RETENTION_DAYS}d old, Saved status)")
     print(f"  Total in DB       : {total_after}")
     print(f"  Output file       : {OUTPUT_PATH}")
     print(f"  Elapsed           : {elapsed:.1f}s")

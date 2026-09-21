@@ -118,6 +118,55 @@ def load_existing_job_ids(wb: Workbook) -> set[str]:
     return ids
 
 
+def _write_row(ws, row_num: int, values: list) -> None:
+    """Write one Jobs-sheet row with the shared styling/hyperlink rules.
+    Shared by append_jobs() (new rows) and prune_stale_jobs() (rewriting
+    kept rows) so both stay pixel-identical."""
+    is_alt = row_num % 2 == 0
+    fill = PatternFill("solid", fgColor=C_ALT_ROW) if is_alt else None
+
+    for col_idx, value in enumerate(values, start=1):
+        cell = ws.cell(row=row_num, column=col_idx, value=value)
+        cell.border = _thin_border()
+        cell.alignment = Alignment(vertical="center", wrap_text=(col_idx in (3, 9, 12)))
+        if fill:
+            cell.fill = fill
+
+        # Hyperlink for Apply_URL column
+        if col_idx == 8 and value and str(value).startswith("http"):
+            cell.hyperlink = value
+            cell.font = Font(color="0563C1", underline="single")
+
+
+def _finalize_table_and_validation(ws) -> None:
+    """(Re)add the Excel Table over the current row range and the Status
+    dropdown — must run after any row add/remove, since both are tied to
+    a fixed range that stales the moment row count changes."""
+    if ws.max_row < 2:
+        return
+    last_col = get_column_letter(len(COLUMNS))
+    ref = f"A1:{last_col}{ws.max_row}"
+    for tbl in list(ws.tables.values()):
+        del ws.tables[tbl.name]
+    table = Table(displayName="JobsTable", ref=ref)
+    table.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium9",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    ws.add_table(table)
+
+    dv = DataValidation(
+        type="list",
+        formula1=f'"{",".join(STATUS_CHOICES)}"',
+        showDropDown=False,
+    )
+    ws.add_data_validation(dv)
+    dv.add(f"G2:G{ws.max_row}")
+
+
 def append_jobs(wb: Workbook, jobs: list[dict]) -> int:
     """Append new jobs to the Jobs sheet. Returns count of rows added."""
     ws = _ensure_jobs_sheet(wb)
@@ -128,10 +177,6 @@ def append_jobs(wb: Workbook, jobs: list[dict]) -> int:
         jid = str(job.get("job_id", ""))
         if jid in existing_ids:
             continue
-
-        row_num = ws.max_row + 1
-        is_alt = row_num % 2 == 0
-        fill = PatternFill("solid", fgColor=C_ALT_ROW) if is_alt else None
 
         values = [
             date.today().isoformat(),
@@ -147,50 +192,65 @@ def append_jobs(wb: Workbook, jobs: list[dict]) -> int:
             job.get("search_query", ""),
             job.get("english_reason", ""),
         ]
-
-        for col_idx, value in enumerate(values, start=1):
-            cell = ws.cell(row=row_num, column=col_idx, value=value)
-            cell.border = _thin_border()
-            cell.alignment = Alignment(vertical="center", wrap_text=(col_idx in (3, 9, 12)))
-            if fill:
-                cell.fill = fill
-
-            # Hyperlink for Apply_URL column
-            if col_idx == 8 and value and value.startswith("http"):
-                cell.hyperlink = value
-                cell.font = Font(color="0563C1", underline="single")
-
+        _write_row(ws, ws.max_row + 1, values)
         existing_ids.add(jid)
         added += 1
 
-    # Add/refresh Excel Table
-    if ws.max_row >= 2:
-        last_col = get_column_letter(len(COLUMNS))
-        ref = f"A1:{last_col}{ws.max_row}"
-        # Remove existing tables first
-        for tbl in list(ws.tables.values()):
-            del ws.tables[tbl.name]
-        table = Table(displayName="JobsTable", ref=ref)
-        style = TableStyleInfo(
-            name="TableStyleMedium9",
-            showFirstColumn=False,
-            showLastColumn=False,
-            showRowStripes=True,
-            showColumnStripes=False,
-        )
-        table.tableStyleInfo = style
-        ws.add_table(table)
-
-    # Status dropdown validation
-    dv = DataValidation(
-        type="list",
-        formula1=f'"{",".join(STATUS_CHOICES)}"',
-        showDropDown=False,
-    )
-    ws.add_data_validation(dv)
-    dv.add(f"G2:G{ws.max_row}")
-
+    _finalize_table_and_validation(ws)
     return added
+
+
+def prune_stale_jobs(wb: Workbook, retention_days: int) -> int:
+    """
+    Drop "Saved" rows whose Date_Found is older than retention_days.
+    Rows in any other status (Applied/Interview/Offer/Rejected) are never
+    touched by age — that's real application history, not a stale
+    listing, and pruning it would destroy the user's own tracking.
+    A row with a missing/malformed Date_Found is also kept (can't judge
+    its age, so the safe default is to not discard it).
+
+    Rebuilds the sheet from scratch rather than ws.delete_rows() in a
+    loop — repeated delete_rows() on a sheet with an Excel Table defined
+    doesn't reliably compact rows/table refs on this openpyxl version and
+    can silently corrupt the sheet layout even though the save succeeds.
+
+    Returns the number of rows dropped.
+    """
+    if "Jobs" not in wb.sheetnames:
+        return 0
+    ws = wb["Jobs"]
+    if ws.max_row < 2:
+        return 0
+
+    cutoff = date.today().toordinal() - retention_days
+    kept_rows: list[list] = []
+    dropped = 0
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[0]:
+            continue
+        status = row[6] or "Saved"
+        date_found = str(row[0] or "")[:10]
+        try:
+            is_stale = status == "Saved" and date.fromisoformat(date_found).toordinal() < cutoff
+        except ValueError:
+            is_stale = False  # can't parse the date — keep it, don't guess
+        if is_stale:
+            dropped += 1
+        else:
+            kept_rows.append(list(row))
+
+    if dropped == 0:
+        return 0
+
+    del wb["Jobs"]
+    ws = wb.create_sheet("Jobs", 0)
+    _write_jobs_header(ws)
+    for i, values in enumerate(kept_rows):
+        _write_row(ws, i + 2, values)
+    _finalize_table_and_validation(ws)
+
+    return dropped
 
 
 def _build_dashboard(wb: Workbook):

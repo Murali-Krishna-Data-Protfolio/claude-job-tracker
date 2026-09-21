@@ -15,6 +15,15 @@ COUNTRY_CODE  = "FR"   # ISO-2
 # ── English filter ─────────────────────────────────────────────────────────────
 ENGLISH_CONFIDENCE_THRESHOLD = 0.75
 
+# ── Retention window ───────────────────────────────────────────────────────────
+# Job listings age out fast — a 5-week-old "Saved" posting is very likely
+# expired or filled. Every run prunes Saved rows older than this many days
+# from both the Excel DB and (since Telegraph mirrors the Excel DB) the
+# Telegraph page — this also keeps the page under Telegraph's size limit.
+# Rows already acted on (Applied/Interview/Offer/Rejected) are never
+# pruned by age — that's real application history, not stale listing noise.
+JOB_RETENTION_DAYS = 28  # ~4 weeks (requested window: 3-4 weeks)
+
 # ── Output ─────────────────────────────────────────────────────────────────────
 OUTPUT_DIR  = os.path.join(os.path.dirname(__file__), "outputs")
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "job_applications_likhitha.xlsx")

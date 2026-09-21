@@ -451,16 +451,107 @@ def fetch_all_jobs() -> list[dict]:
     return all_jobs
 
 
+# ── Link validation ───────────────────────────────────────────────────────────
+# Ported from the main job_tracker's fix (job_fetcher.py) — this standalone
+# copy never had link checking at all, so every fetched job (dead listings
+# included) went straight to the classifier and, if it passed, into the
+# tracker with no way to know the apply link even still worked.
+
+def check_url(url: str, timeout: int = 10) -> tuple[bool, str]:
+    """
+    Check whether a job's apply URL still resolves to a real listing.
+    Returns (is_valid, reason).
+
+    Only treat a link as dead on a signal that actually means the listing
+    is gone: 404 (not found) or 410 (gone). A 403 is deliberately NOT
+    treated as dead — plenty of large employers front their career sites
+    with bot protection that blocks any automated request with 403
+    regardless of whether the listing is still live, so 403 means
+    "couldn't verify", not "confirmed gone". Same reasoning for connection
+    errors/timeouts — network flakiness isn't proof either.
+    """
+    if not url or not url.startswith("http"):
+        return False, "missing or malformed URL"
+    try:
+        r = requests.head(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
+        if r.status_code in (405, 403):
+            r2 = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True, stream=True)
+            r2.close()
+            r = r2
+        if r.status_code in (404, 410):
+            return False, f"HTTP {r.status_code}"
+        if r.status_code == 403:
+            return True, "HTTP 403 (bot-blocked, assumed still live)"
+        if 200 <= r.status_code < 400:
+            return True, f"HTTP {r.status_code}"
+        return True, f"HTTP {r.status_code} (inconclusive, kept)"
+    except requests.RequestException as e:
+        return True, f"unreachable ({type(e).__name__}) — inconclusive, kept"
+
+
+def filter_valid_links(jobs: list[dict]) -> list[dict]:
+    """Drop jobs whose apply URL is dead, removed, or unreachable."""
+    if not jobs:
+        return []
+    valid: list[dict] = []
+    print(f"\n  Verifying {len(jobs)} job links...")
+    for job in jobs:
+        ok, reason = check_url(job.get("url", ""))
+        verdict = "PASS" if ok else "SKIP"
+        print(f"    {verdict} [{job.get('source','')}] {job.get('title')} @ {job.get('company')} — {reason}")
+        if ok:
+            valid.append(job)
+        else:
+            job["link_invalid_reason"] = reason
+        time.sleep(0.2)   # polite between requests
+    print(f"\n  Valid links: {len(valid)} / {len(jobs)}")
+    return valid
+
+
 # ── English-role classifier ───────────────────────────────────────────────────
 
+def _extract_json_object(text: str) -> dict:
+    """
+    Pull the JSON object out of a Claude response, tolerating:
+      - ```json ... ``` or ``` ... ``` code fences
+      - any commentary the model adds before/after the JSON
+
+    Claude sometimes appends a trailing sentence after the closing '}' (or
+    wraps the whole thing in a fence with text after it). json.loads()
+    rejects that as "Extra data" — json.JSONDecoder.raw_decode() parses
+    just the first valid JSON value and ignores anything after it, so it
+    survives that trailing text instead of throwing.
+    """
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+    cleaned = re.sub(r"\n?```$", "", cleaned.strip())
+    start = cleaned.find("{")
+    if start == -1:
+        raise ValueError(f"no JSON object in response: {cleaned[:120]!r}")
+    obj, _ = json.JSONDecoder().raw_decode(cleaned[start:])
+    return obj
+
+
 def filter_english_jobs(jobs: list[dict]) -> list[dict]:
-    """Classify each job using Claude API with cached profile prompt."""
+    """
+    Classify each job using Claude API with cached profile prompt.
+
+    Strict / fail-closed: a job is included ONLY when the classifier
+    successfully confirms is_english_role=true with confidence at or above
+    the threshold. If the API call errors, the response can't be parsed, or
+    the model isn't confidently "yes" — the job is EXCLUDED, never added on
+    a guess. (This used to fall back to including the job anyway with a
+    fabricated confidence=0.5 on any parse/API error — see
+    job-tracker-english-filter-fix in the main job_tracker for the same bug
+    and fix there; this standalone copy had never been updated.)
+    """
     if not jobs:
         return []
 
     client      = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
     cache_block = get_cached_system_message()
     english_jobs: list[dict] = []
+    excluded = 0
 
     print(f"\n  Classifying {len(jobs)} jobs for English-speaking requirement...")
 
@@ -472,35 +563,57 @@ def filter_english_jobs(jobs: list[dict]) -> list[dict]:
             f"Source: {job.get('source','')}\n"
             f"Description: {job.get('description','')}"
         )
+        src = job.get("source", "")
+
+        # Up to 2 attempts total — a transient parse hiccup shouldn't cost a
+        # real English job, but repeated failure must still exclude it.
+        result = None
+        last_err: Exception | None = None
+        for _attempt in range(2):
+            try:
+                resp = client.messages.create(
+                    model=CLAUDE_MODEL,
+                    max_tokens=256,
+                    system=[cache_block],
+                    messages=[{"role": "user", "content": job_text}],
+                )
+                result = _extract_json_object(resp.content[0].text)
+                cache_hit = getattr(resp.usage, "cache_read_input_tokens", 0)
+                break
+            except Exception as e:
+                last_err = e
+                continue
+
+        if result is None:
+            job["english_confidence"] = 0.0
+            job["english_reason"]     = f"excluded: classification failed ({last_err})"
+            excluded += 1
+            print(f"    SKIP [{src}] {job.get('title')} @ {job.get('company')} — classifier error, excluded")
+            continue
+
         try:
-            resp = client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=256,
-                system=[cache_block],
-                messages=[{"role": "user", "content": job_text}],
-            )
-            raw = re.sub(r"^```[a-z]*\n?|\n?```$", "", resp.content[0].text.strip())
-            result     = json.loads(raw)
             confidence = float(result.get("confidence", 0))
             is_english = bool(result.get("is_english_role", False))
-            reason     = result.get("reason", "")
+            reason     = str(result.get("reason", ""))
+        except (TypeError, ValueError) as e:
+            job["english_confidence"] = 0.0
+            job["english_reason"]     = f"excluded: malformed classifier response ({e})"
+            excluded += 1
+            print(f"    SKIP [{src}] {job.get('title')} @ {job.get('company')} — malformed response, excluded")
+            continue
 
-            job["english_confidence"] = round(confidence, 2)
-            job["english_reason"]     = reason
+        job["english_confidence"] = round(confidence, 2)
+        job["english_reason"]     = reason
 
-            cache_hit = getattr(resp.usage, "cache_read_input_tokens", 0)
-            tag = f" [cache:{cache_hit}tk]" if cache_hit else ""
-            verdict = "PASS" if (is_english and confidence >= ENGLISH_CONFIDENCE_THRESHOLD) else "SKIP"
-            src = job.get("source", "")
-            print(f"    {verdict} [{src}] {job.get('title')} @ {job.get('company')} ({confidence:.0%}){tag}")
+        tag = f" [cache:{cache_hit}tk]" if cache_hit else ""
+        passes = is_english and confidence >= ENGLISH_CONFIDENCE_THRESHOLD
+        verdict = "PASS" if passes else "SKIP"
+        print(f"    {verdict} [{src}] {job.get('title')} @ {job.get('company')} ({confidence:.0%}){tag}")
 
-            if is_english and confidence >= ENGLISH_CONFIDENCE_THRESHOLD:
-                english_jobs.append(job)
-
-        except (json.JSONDecodeError, ValueError, Exception) as e:
-            job["english_confidence"] = 0.5
-            job["english_reason"]     = f"parse error: {e}"
+        if passes:
             english_jobs.append(job)
+        else:
+            excluded += 1
 
-    print(f"\n  English-speaking: {len(english_jobs)} / {len(jobs)}")
+    print(f"\n  English-speaking: {len(english_jobs)} / {len(jobs)}  (excluded: {excluded})")
     return english_jobs
