@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NeetiFusion — AI-Era Data Consulting Enterprise</title>
+<meta name="description" content="NeetiFusion unifies data and leverages AI-driven analytics to help every business team make better decisions and grow.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  :root{
+    --bg:#f5f8fc;
+    --ink-900:#0c1220;
+    --ink-800:#eaf0f9;
+    --ink-700:#e2e9f4;
+    --line:#dbe3ef;
+    --gold-300:#c2410c;
+    --gold-500:#f97316;
+    --gold-600:#9a3412;
+    --teal-300:#1d4ed8;
+    --teal-400:#1b3f73;
+    --teal-600:#3b6ea5;
+    --text:#0c1220;
+    --muted:#57647d;
+    --paper:#fff8f0;
+    --font-display:'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-body:'IBM Plex Sans', -apple-system, Segoe UI, sans-serif;
+    --font-mono:'IBM Plex Mono', SFMono-Regular, Consolas, monospace;
+  }
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    line-height:1.55;
+    padding-left:max(20px, env(safe-area-inset-left,0px));
+    padding-right:max(20px, env(safe-area-inset-right,0px));
+  }
+  h1,h2,h3{font-family:var(--font-display); text-wrap:balance; margin:0;}
+  p{margin:0;}
+  a{color:inherit;}
+  img,svg{max-width:100%;}
+  .wrap{max-width:1080px; margin:0 auto;}
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal-300);
+  }
+
+  /* ---------- header ---------- */
+  header{
+    position:sticky;
+    top:env(safe-area-inset-top,0px);
+    z-index:50;
+    background:rgba(245,248,252,0.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    margin-left:calc(-1 * max(20px, env(safe-area-inset-left,0px)));
+    margin-right:calc(-1 * max(20px, env(safe-area-inset-right,0px)));
+    padding-left:max(20px, env(safe-area-inset-left,0px));
+    padding-right:max(20px, env(safe-area-inset-right,0px));
+  }
+  .nav{
+    max-width:1080px; margin:0 auto;
+    display:flex; align-items:center; justify-content:space-between;
+    padding-block:14px;
+    gap:16px;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-size:1.15rem; font-weight:600; white-space:nowrap;}
+  .brand svg{width:28px; height:28px; flex:none;}
+  .navlinks{display:flex; gap:26px; font-size:0.92rem; color:var(--muted);}
+  .navlinks a{text-decoration:none; transition:color .2s;}
+  .navlinks a:hover{color:var(--teal-300);}
+  .navcta{
+    font-family:var(--font-mono); font-size:0.8rem;
+    border:1px solid var(--gold-500); color:var(--gold-300);
+    padding:8px 14px; text-decoration:none; white-space:nowrap;
+    transition:background .2s, color .2s;
+  }
+  .navcta:hover{background:var(--gold-500); color:var(--ink-900);}
+  @media (max-width:720px){ .navlinks{display:none;} }
+
+  /* ---------- hero ---------- */
+  .hero{
+    position:relative;
+    padding-block:64px 56px;
+    overflow:hidden;
+  }
+  #network{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    opacity:0.4;
+    pointer-events:none;
+  }
+  .hero-inner{position:relative; z-index:2; max-width:760px;}
+  .hero h1{
+    font-size:clamp(2.1rem, 5vw, 3.4rem);
+    font-weight:500;
+    line-height:1.15;
+    margin-block:18px 20px;
+    max-width:20ch;
+  }
+  .hero h1 em{
+    font-style:normal;
+    background:linear-gradient(90deg, var(--gold-300), var(--teal-300));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .hero .mission{
+    margin-top:18px;
+    font-family:var(--font-mono);
+    font-size:0.85rem;
+    color:var(--muted);
+    letter-spacing:0.02em;
+  }
+  .hero-ctas{display:flex; gap:14px; margin-top:34px; flex-wrap:wrap;}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:12px 22px;
+    font-family:var(--font-body); font-weight:600; font-size:0.95rem;
+    text-decoration:none;
+    border-radius:2px;
+  }
+  .btn-primary{background:var(--gold-500); color:var(--ink-900);}
+  .btn-primary:hover{background:var(--gold-300); color:#ffffff;}
+  .btn-ghost{border:1px solid var(--line); color:var(--text);}
+  .btn-ghost:hover{border-color:var(--gold-500); color:var(--gold-300);}
+
+  section{padding-block:72px;}
+  .section-head{max-width:620px; margin-bottom:44px;}
+  .section-head h2{font-size:clamp(1.6rem,3vw,2.2rem); font-weight:500; margin-top:10px;}
+  .section-head p{color:var(--muted); margin-top:12px; font-size:1.02rem;}
+
+  /* ---------- philosophy ---------- */
+  #philosophy{border-top:1px solid var(--line);}
+  .philosophy-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:start;
+  }
+  .philo-card{
+    padding:26px 24px 26px 22px;
+    border-left:2px solid var(--gold-500);
+    background:var(--ink-800);
+  }
+  .philo-card:nth-child(2){border-left-color:var(--teal-400);}
+  .philo-card h3{font-size:1.15rem; font-weight:600; margin-bottom:10px; color:var(--gold-300); font-family:var(--font-body);}
+  .philo-card:nth-child(2) h3{color:var(--teal-300);}
+  .philo-card p{color:var(--muted); font-size:0.96rem;}
+  @media (max-width:760px){ .philosophy-grid{grid-template-columns:1fr;} }
+
+  /* ---------- services ---------- */
+  #services{background:var(--ink-800); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+  .services-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--line);}
+  .service{
+    background:var(--ink-800);
+    padding:30px 28px;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .service .num{font-family:var(--font-mono); font-size:0.78rem; color:var(--teal-300); text-transform:uppercase; letter-spacing:0.1em;}
+  .service h3{font-size:1.08rem; font-weight:600; font-family:var(--font-body);}
+  .service p{color:var(--muted); font-size:0.93rem;}
+  @media (max-width:760px){ .services-grid{grid-template-columns:1fr;} }
+
+  /* ---------- approach ---------- */
+  .approach-row{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:0;
+    counter-reset:step;
+    border-top:1px solid var(--line);
+  }
+  .step{
+    padding:26px 20px 0 0;
+    border-right:1px solid var(--line);
+    position:relative;
+  }
+  .step:last-child{border-right:none;}
+  .step::before{
+    counter-increment:step;
+    content:"0" counter(step);
+    display:block;
+    font-family:var(--font-mono);
+    font-size:0.78rem;
+    color:var(--gold-300);
+    margin-bottom:10px;
+  }
+  .step h4{font-family:var(--font-body); font-size:1rem; font-weight:600; margin-bottom:8px;}
+  .step p{color:var(--muted); font-size:0.9rem;}
+  @media (max-width:760px){
+    .approach-row{grid-template-columns:1fr;}
+    .step{border-right:none; border-bottom:1px solid var(--line); padding-bottom:22px;}
+  }
+
+  /* ---------- mission ---------- */
+  #mission{
+    border-top:1px solid var(--line);
+    text-align:left;
+  }
+  .mission-flow{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:14px 10px;
+    font-family:var(--font-display);
+    font-size:clamp(1.5rem, 4vw, 2.6rem);
+    font-weight:500;
+    line-height:1.25;
+  }
+  .mission-flow .beat{white-space:nowrap;}
+  .mission-flow .beat:nth-child(1){color:var(--gold-300);}
+  .mission-flow .beat:nth-child(2){color:var(--gold-300);}
+  .mission-flow .beat:nth-child(3){color:var(--teal-300);}
+  .mission-flow .beat:nth-child(4){color:var(--teal-300);}
+  .mission-flow .arrow{color:var(--muted); font-family:var(--font-mono); font-size:1.4rem;}
+
+  /* ---------- contact ---------- */
+  #contact{
+    border-top:1px solid var(--line);
+    background:var(--ink-800);
+  }
+  .contact-inner{display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap;}
+  .contact-copy{display:flex; flex-direction:column; gap:12px; max-width:32ch;}
+  .contact-inner h2{font-size:clamp(1.6rem,3.4vw,2.3rem); font-weight:500; max-width:14ch;}
+  .contact-sub{color:var(--muted); font-size:0.98rem;}
+  .contact-cta{display:flex; flex-direction:column; gap:14px; align-items:flex-start;}
+  .contact-email{
+    font-family:var(--font-mono); font-size:1.05rem;
+    color:var(--teal-300); text-decoration:none;
+    border-bottom:1px solid var(--teal-600);
+    padding-bottom:2px;
+  }
+  .contact-email:hover{color:var(--teal-400);}
+
+  footer{
+    padding-block:26px calc(26px + env(safe-area-inset-bottom,0px));
+    display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    font-family:var(--font-mono); font-size:0.75rem; color:var(--muted);
+    border-top:1px solid var(--line);
+  }
+
+  /* ---------- data-flow story ---------- */
+  #story{border-top:1px solid var(--line);}
+  .flow-diagram{margin-top:28px;}
+  .flow-diagram svg{width:100%; height:auto; display:block; overflow:visible;}
+  .flow-in path{fill:none; stroke:var(--gold-500); stroke-opacity:0.3; stroke-width:1.5; stroke-dasharray:5 9;}
+  .flow-out path{fill:none; stroke:var(--teal-400); stroke-opacity:0.35; stroke-width:1.5; stroke-dasharray:5 9;}
+  .dot-in{fill:var(--gold-300);}
+  .dot-out{fill:var(--teal-300);}
+  .node-source{fill:var(--ink-800); stroke:var(--gold-500); stroke-width:2;}
+  .node-outcome{fill:var(--ink-800); stroke:var(--teal-400); stroke-width:2;}
+  .flow-label{font-family:var(--font-mono); font-size:15px; fill:var(--text);}
+  @media (prefers-reduced-motion:no-preference){
+    .flow-in path, .flow-out path{animation:dashFlow 1.1s linear infinite;}
+    .node-source{animation:pulseSource 3s ease-in-out infinite;}
+    .node-outcome{animation:pulseOutcome 3.4s ease-in-out infinite;}
+  }
+  @keyframes dashFlow{to{stroke-dashoffset:-28;}}
+  @keyframes pulseSource{0%,100%{r:37;}50%{r:40;}}
+  @keyframes pulseOutcome{0%,100%{r:45;}50%{r:48;}}
+  .hub-core{fill:var(--teal-400);}
+  .hub-title{font-family:var(--font-display); font-size:21px; font-weight:600; fill:#ffffff;}
+  .hub-sub{font-family:var(--font-mono); font-size:11px; letter-spacing:0.02em; fill:#ffffff; opacity:0.88;}
+  .flow-caption{margin-top:20px; font-family:var(--font-mono); font-size:0.8rem; color:var(--muted); text-align:center;}
+</style>
+</head>
+<body>
+
+<header>
+  <nav class="nav">
+    <div class="brand">
+      <svg viewBox="0 0 100 100">
+        <circle cx="40" cy="50" r="30" fill="#f97316"/>
+        <circle cx="62" cy="50" r="30" fill="#1b3f73"/>
+      </svg>
+      NeetiFusion
+    </div>
+    <div class="navlinks">
+      <a href="#story">Practice</a>
+      <a href="#philosophy">Philosophy</a>
+      <a href="#services">Services</a>
+      <a href="#approach">Approach</a>
+      <a href="#mission">Mission</a>
+    </div>
+    <a class="navcta" href="#contact">Start a conversation</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <canvas id="network"></canvas>
+  <div class="wrap hero-inner">
+    <p class="eyebrow">AI-Era Data Consulting Enterprise — Unified Solutions</p>
+    <h1 class="tagline">One <em>unifying</em> data platform for all teams.</h1>
+    <p class="mission">UNIFY DATA · LEVERAGE ANALYTICS · IMPROVE DECISIONS · GROW THE BUSINESS</p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="#services">See our services</a>
+      <a class="btn btn-ghost" href="#contact">Start a conversation</a>
+    </div>
+  </div>
+</div>
+
+<section id="story" class="wrap">
+  <div class="section-head">
+    <p class="eyebrow">Our Practice</p>
+    <h2>Every data source. One unified practice. Real growth.</h2>
+    <p>NeetiFusion is a data consulting enterprise. We unify your scattered systems, apply AI-driven analytics as an extension of your team, and turn the result into leads, decisions, and measurable growth.</p>
+  </div>
+  <div class="flow-diagram">
+    <svg id="flowSvg" viewBox="0 0 1000 620" role="img" aria-label="Diagram: data from CRM, marketing, finance, support, product and legacy systems flows into NeetiFusion's consulting practice, which produces unified analytics, AI-driven insights, and business growth.">
+      <defs>
+        <radialGradient id="hubGlow">
+          <stop offset="0" stop-color="#f97316" stop-opacity="0.3"/>
+          <stop offset="1" stop-color="#f97316" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <g class="flow-in">
+        <path id="p1" d="M70,84 C70,200 350,210 500,215"/>
+        <path id="p2" d="M240,84 C240,190 420,210 500,215"/>
+        <path id="p3" d="M410,84 C410,180 460,210 500,215"/>
+        <path id="p4" d="M580,84 C580,180 540,210 500,215"/>
+        <path id="p5" d="M750,84 C750,190 580,210 500,215"/>
+        <path id="p6" d="M920,84 C920,200 650,210 500,215"/>
+      </g>
+      <g class="flow-out">
+        <path id="q1" d="M500,385 C500,440 300,470 230,518"/>
+        <path id="q2" d="M500,385 C500,440 500,470 500,518"/>
+        <path id="q3" d="M500,385 C500,440 700,470 770,518"/>
+      </g>
+
+      <circle r="4" class="dot-in" opacity="0">
+        <animateMotion dur="3.4s" begin="0s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p1"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.4s" begin="0s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="4" class="dot-in" opacity="0">
+        <animateMotion dur="3.7s" begin="0.6s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p2"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.7s" begin="0.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="4" class="dot-in" opacity="0">
+        <animateMotion dur="3.1s" begin="1.1s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p3"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.1s" begin="1.1s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="4" class="dot-in" opacity="0">
+        <animateMotion dur="3.9s" begin="1.7s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p4"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.9s" begin="1.7s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="4" class="dot-in" opacity="0">
+        <animateMotion dur="3.3s" begin="2.2s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p5"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.3s" begin="2.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="4" class="dot-in" opacity="0">
+        <animateMotion dur="3.6s" begin="2.8s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p6"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="2.8s" repeatCount="indefinite"/>
+      </circle>
+
+      <circle r="4" class="dot-out" opacity="0">
+        <animateMotion dur="2.6s" begin="0.3s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#q1"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.18;0.82;1" dur="2.6s" begin="0.3s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="4" class="dot-out" opacity="0">
+        <animateMotion dur="2.9s" begin="1.0s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#q2"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.18;0.82;1" dur="2.9s" begin="1.0s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="4" class="dot-out" opacity="0">
+        <animateMotion dur="2.5s" begin="1.7s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#q3"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.18;0.82;1" dur="2.5s" begin="1.7s" repeatCount="indefinite"/>
+      </circle>
+
+      <circle r="3" class="dot-in" opacity="0">
+        <animateMotion dur="3.4s" begin="1.7s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p1"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.4s" begin="1.7s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="3" class="dot-in" opacity="0">
+        <animateMotion dur="3.7s" begin="2.45s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p2"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.7s" begin="2.45s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="3" class="dot-in" opacity="0">
+        <animateMotion dur="3.1s" begin="2.65s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p3"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.1s" begin="2.65s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="3" class="dot-in" opacity="0">
+        <animateMotion dur="3.9s" begin="3.65s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p4"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.9s" begin="3.65s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="3" class="dot-in" opacity="0">
+        <animateMotion dur="3.3s" begin="3.85s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p5"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.3s" begin="3.85s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="3" class="dot-in" opacity="0">
+        <animateMotion dur="3.6s" begin="4.6s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#p6"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="3.6s" begin="4.6s" repeatCount="indefinite"/>
+      </circle>
+
+      <circle r="3" class="dot-out" opacity="0">
+        <animateMotion dur="2.6s" begin="1.6s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#q1"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.18;0.82;1" dur="2.6s" begin="1.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="3" class="dot-out" opacity="0">
+        <animateMotion dur="2.9s" begin="2.45s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#q2"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.18;0.82;1" dur="2.9s" begin="2.45s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="3" class="dot-out" opacity="0">
+        <animateMotion dur="2.5s" begin="2.95s" repeatCount="indefinite" calcMode="spline" keyTimes="0;1" keySplines="0.42 0 0.58 1"><mpath href="#q3"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.18;0.82;1" dur="2.5s" begin="2.95s" repeatCount="indefinite"/>
+      </circle>
+
+      <g class="node-group">
+        <circle class="node-source" cx="70" cy="50" r="37"/>
+        <text class="flow-label" x="70" y="55" text-anchor="middle">CRM</text>
+      </g>
+      <g class="node-group">
+        <circle class="node-source" cx="240" cy="50" r="37"/>
+        <text class="flow-label" x="240" y="55" text-anchor="middle">Marketing</text>
+      </g>
+      <g class="node-group">
+        <circle class="node-source" cx="410" cy="50" r="37"/>
+        <text class="flow-label" x="410" y="55" text-anchor="middle">Finance</text>
+      </g>
+      <g class="node-group">
+        <circle class="node-source" cx="580" cy="50" r="37"/>
+        <text class="flow-label" x="580" y="55" text-anchor="middle">Support</text>
+      </g>
+      <g class="node-group">
+        <circle class="node-source" cx="750" cy="50" r="37"/>
+        <text class="flow-label" x="750" y="55" text-anchor="middle">Product</text>
+      </g>
+      <g class="node-group">
+        <circle class="node-source" cx="920" cy="50" r="37"/>
+        <text class="flow-label" x="920" y="44" text-anchor="middle">Legacy</text>
+        <text class="flow-label" x="920" y="60" text-anchor="middle">Systems</text>
+      </g>
+
+      <circle cx="500" cy="300" r="110" fill="url(#hubGlow)">
+        <animate attributeName="r" values="104;122;104" dur="4.5s" calcMode="spline" keyTimes="0;0.5;1" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="500" cy="300" r="85" class="hub-core"/>
+      <circle cx="486" cy="265" r="9" fill="#f97316" stroke="#ffffff" stroke-width="1.5"/>
+      <circle cx="514" cy="265" r="9" fill="#1b3f73" stroke="#ffffff" stroke-width="1.5"/>
+      <text x="500" y="298" text-anchor="middle" class="hub-title">NeetiFusion</text>
+      <text x="500" y="319" text-anchor="middle" class="hub-sub">MODERN DATA</text>
+      <text x="500" y="332" text-anchor="middle" class="hub-sub">CONSULTING</text>
+
+      <g class="node-group">
+        <circle class="node-outcome" cx="230" cy="560" r="45"/>
+        <text class="flow-label" x="230" y="556" text-anchor="middle">Unified</text>
+        <text class="flow-label" x="230" y="572" text-anchor="middle">Analytics</text>
+      </g>
+      <g class="node-group">
+        <circle class="node-outcome" cx="500" cy="560" r="45"/>
+        <text class="flow-label" x="500" y="556" text-anchor="middle">AI-Driven</text>
+        <text class="flow-label" x="500" y="572" text-anchor="middle">Insights</text>
+      </g>
+      <g class="node-group">
+        <circle class="node-outcome" cx="770" cy="560" r="45"/>
+        <text class="flow-label" x="770" y="556" text-anchor="middle">Leads &amp;</text>
+        <text class="flow-label" x="770" y="572" text-anchor="middle">Growth</text>
+      </g>
+    </svg>
+  </div>
+  <p class="flow-caption">Six systems in. One data consulting enterprise. Three outcomes — every time.</p>
+</section>
+
+<section id="philosophy" class="wrap">
+  <div class="section-head">
+    <p class="eyebrow">The Name</p>
+    <h2>Two disciplines, one practice.</h2>
+    <p>NeetiFusion is built from two words on purpose — one is 2,300 years old, the other is as current as your last dashboard refresh.</p>
+  </div>
+  <div class="philosophy-grid">
+    <div class="philo-card">
+      <h3>Neeti</h3>
+      <p>Sanskrit for pragmatic, ethical strategy — drawn from the <em>Chanakya Neeti</em>, the classical Indian text on statecraft. We apply the same discipline to data: decide well, not just fast.</p>
+    </div>
+    <div class="philo-card">
+      <h3>Fusion</h3>
+      <p>Strategy teams and data teams rarely sit in the same room. Fusion means we build both into one practice — one team carries your problem from raw data to the decision it drives.</p>
+    </div>
+  </div>
+</section>
+
+<section id="services">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">What We Deliver</p>
+      <h2>Everything your teams need, delivered by one team.</h2>
+      <p>We build and deliver the data capabilities that let every team — sales, finance, operations, product — work from a single, trusted source.</p>
+    </div>
+  </div>
+  <div class="services-grid">
+    <div class="service">
+      <span class="num">We Build</span>
+      <h3>AI &amp; Machine Learning</h3>
+      <p>We build applied AI models for the era you're actually operating in — trained on your unified data, governed with the same discipline Neeti applies to any strategy.</p>
+    </div>
+    <div class="service">
+      <span class="num">We Deliver</span>
+      <h3>Data Engineering &amp; Integration</h3>
+      <p>We deliver pipelines and warehouses that unify scattered systems into one source every team can trust.</p>
+    </div>
+    <div class="service">
+      <span class="num">We Build</span>
+      <h3>Analytics &amp; Business Intelligence</h3>
+      <p>We build dashboards and reporting designed for the people who use them — not the tool that produced them.</p>
+    </div>
+    <div class="service">
+      <span class="num">We Deliver</span>
+      <h3>Data Strategy &amp; Advisory</h3>
+      <p>We deliver the frameworks that tell you what to measure, what to ignore, and what a wrong decision actually costs.</p>
+    </div>
+  </div>
+</section>
+
+<section id="approach" class="wrap">
+  <div class="section-head">
+    <p class="eyebrow">How We Work</p>
+    <h2>One team, start to finish.</h2>
+    <p>No handoff between "the strategy people" and "the data people" — the same consulting team carries the engagement through all four steps.</p>
+  </div>
+  <div class="approach-row">
+    <div class="step">
+      <h4>Discover</h4>
+      <p>Map the decisions your teams actually need to make, and the data currently in the way of making them.</p>
+    </div>
+    <div class="step">
+      <h4>Unify</h4>
+      <p>Bring the relevant data into one place, one model, one shared source of truth.</p>
+    </div>
+    <div class="step">
+      <h4>Analyze</h4>
+      <p>Apply the right analytics or model to the question — not the fanciest one available.</p>
+    </div>
+    <div class="step">
+      <h4>Decide</h4>
+      <p>Hand back a recommendation a team can act on this week, not a report that sits in a folder.</p>
+    </div>
+  </div>
+</section>
+
+<section id="mission" class="wrap">
+  <p class="eyebrow">Mission — Built for the AI Era</p>
+  <div class="mission-flow" style="margin-top:14px;">
+    <span class="beat">Unify data.</span>
+    <span class="arrow">→</span>
+    <span class="beat">Leverage analytics.</span>
+    <span class="arrow">→</span>
+    <span class="beat">Improve decisions.</span>
+    <span class="arrow">→</span>
+    <span class="beat">Grow the business.</span>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="wrap contact-inner">
+    <div class="contact-copy">
+      <h2>Let's unify your data.</h2>
+      <p class="contact-sub">Tell us about your data challenge — our consulting team replies within one business day.</p>
+    </div>
+    <div class="contact-cta">
+      <a class="contact-email" href="mailto:hello@neetifusion.com">hello@neetifusion.com</a>
+      <a class="btn btn-primary" href="mailto:hello@neetifusion.com">Start a conversation</a>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <span>© 2026 NeetiFusion — Data Consulting Enterprise</span>
+  <span>Strategic Clarity · Technical Depth · Single-Thread Delivery</span>
+</footer>
+
+<script>
+(function(){
+  var canvas = document.getElementById('network');
+  var ctx = canvas.getContext('2d');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hero = document.querySelector('.hero');
+  var w, h, pts = [];
+  var N = 46;
+
+  function size(){
+    var rect = hero.getBoundingClientRect();
+    w = canvas.width = rect.width * devicePixelRatio;
+    h = canvas.height = rect.height * devicePixelRatio;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+  }
+
+  function init(){
+    pts = [];
+    for (var i=0;i<N;i++){
+      pts.push({
+        x: Math.random()*w,
+        y: Math.random()*h,
+        vx: (Math.random()-0.5)*0.15*devicePixelRatio,
+        vy: (Math.random()-0.5)*0.15*devicePixelRatio
+      });
+    }
+  }
+
+  function frame(){
+    ctx.clearRect(0,0,w,h);
+    for (var i=0;i<pts.length;i++){
+      var p = pts[i];
+      if (!reduce){ p.x += p.vx; p.y += p.vy; }
+      if (p.x<0||p.x>w) p.vx*=-1;
+      if (p.y<0||p.y>h) p.vy*=-1;
+    }
+    for (var i=0;i<pts.length;i++){
+      for (var j=i+1;j<pts.length;j++){
+        var a = pts[i], b = pts[j];
+        var dx=a.x-b.x, dy=a.y-b.y;
+        var d = Math.sqrt(dx*dx+dy*dy);
+        var maxD = 130*devicePixelRatio;
+        if (d < maxD){
+          ctx.strokeStyle = 'rgba(27,63,115,' + (0.10*(1-d/maxD)) + ')';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(a.x,a.y);
+          ctx.lineTo(b.x,b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    for (var i=0;i<pts.length;i++){
+      ctx.fillStyle = i % 5 === 0 ? 'rgba(249,115,22,0.45)' : 'rgba(27,63,115,0.35)';
+      ctx.beginPath();
+      ctx.arc(pts[i].x, pts[i].y, 1.6*devicePixelRatio, 0, Math.PI*2);
+      ctx.fill();
+    }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+
+  try{
+    size();
+    init();
+    frame();
+    window.addEventListener('resize', function(){ size(); init(); if(reduce) frame(); });
+  }catch(e){}
+})();
+
+(function(){
+  try{
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      var flow = document.getElementById('flowSvg');
+      if (flow && flow.pauseAnimations) flow.pauseAnimations();
+    }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
