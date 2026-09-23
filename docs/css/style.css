@@ -123,6 +123,7 @@ section{padding-block:72px;}
 .section-head{max-width:620px; margin-bottom:44px;}
 .section-head h2{font-size:clamp(1.6rem,3vw,2.2rem); font-weight:500; margin-top:10px;}
 .section-head p{color:var(--muted); margin-top:12px; font-size:1.02rem;}
+.section-head p strong{color:var(--text); font-weight:600;}
 
 /* ---------- philosophy ---------- */
 #philosophy{border-top:1px solid var(--line);}
