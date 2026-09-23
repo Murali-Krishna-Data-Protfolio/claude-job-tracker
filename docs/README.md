@@ -6,9 +6,18 @@ This site lives in `docs/` inside the `claude-job-tracker` repository (unrelated
 to the job tracker app itself) so it can use GitHub's built-in "deploy from
 `/docs`" Pages option with no extra setup.
 
+## Structure
+
+```
+docs/
+├── index.html    # markup only
+├── css/style.css # all styles
+└── js/app.js     # hero network animation + reduced-motion handling
+```
+
 ## Deploying
 
-This is a single static file (`index.html`) with no build step and no dependencies beyond Google Fonts.
+No build step and no dependencies beyond Google Fonts — everything else is relatively linked.
 
 **GitHub Pages (this repo)**
 1. Go to Settings → Pages in the `claude-job-tracker` repository
