@@ -5,7 +5,7 @@ Creates and updates the job_applications.xlsx with:
 """
 
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import openpyxl
@@ -26,7 +26,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from config import OUTPUT_PATH, STATUS_CHOICES
+from config import OUTPUT_PATH, RETENTION_WEEKS, STATUS_CHOICES, TARGET_ROLES
 
 # ── Colour palette (Murali's Power BI / dark-blue theme) ──────────────────────
 C_HEADER_BG   = "1F3864"   # dark navy
@@ -194,6 +194,111 @@ def append_jobs(wb: Workbook, jobs: list[dict]) -> int:
     return added
 
 
+def rewrite_jobs_sheet(wb: Workbook, keep_rows: list[dict]) -> None:
+    """
+    Replace the Jobs sheet with exactly `keep_rows` (dicts keyed by
+    COLUMNS), preserving every existing value as-is — Date_Found, Status,
+    English_Confidence etc. are NOT reset or recomputed.
+
+    Use this instead of ws.delete_rows() in a loop to drop rows: on this
+    project's openpyxl version, repeated delete_rows() on a sheet with an
+    Excel Table defined does not reliably shift cell data up — it can leave
+    stale blank rows in the middle and a stale Table ref, silently
+    corrupting the sheet's layout even though save_workbook() succeeds
+    without error. Rebuilding the sheet from scratch (same pattern
+    _build_dashboard already uses for the Dashboard sheet) avoids that
+    entirely: no delete_rows call, no possibility of a stale range.
+    """
+    if "Jobs" in wb.sheetnames:
+        del wb["Jobs"]
+    ws = wb.create_sheet("Jobs", 0)
+    _write_jobs_header(ws)
+
+    for i, row_dict in enumerate(keep_rows):
+        row_num = i + 2
+        is_alt = row_num % 2 == 0
+        fill = PatternFill("solid", fgColor=C_ALT_ROW) if is_alt else None
+        for col_idx, col_name in enumerate(COLUMNS, start=1):
+            value = row_dict.get(col_name, "")
+            cell = ws.cell(row=row_num, column=col_idx, value=value)
+            cell.border = _thin_border()
+            cell.alignment = Alignment(vertical="center", wrap_text=(col_idx in (3, 9, 12)))
+            if fill:
+                cell.fill = fill
+            if col_idx == 8 and value and str(value).startswith("http"):
+                cell.hyperlink = value
+                cell.font = Font(color="0563C1", underline="single")
+
+    if ws.max_row >= 2:
+        last_col = get_column_letter(len(COLUMNS))
+        ref = f"A1:{last_col}{ws.max_row}"
+        for tbl in list(ws.tables.values()):
+            del ws.tables[tbl.name]
+        table = Table(displayName="JobsTable", ref=ref)
+        style = TableStyleInfo(
+            name="TableStyleMedium9",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=True,
+            showColumnStripes=False,
+        )
+        table.tableStyleInfo = style
+        ws.add_table(table)
+
+        dv = DataValidation(
+            type="list",
+            formula1=f'"{",".join(STATUS_CHOICES)}"',
+            showDropDown=False,
+        )
+        ws.add_data_validation(dv)
+        dv.add(f"G2:G{ws.max_row}")
+
+
+def prune_stale_jobs(wb: Workbook, retention_weeks: int = RETENTION_WEEKS) -> int:
+    """
+    Discard every Jobs-sheet row whose Date_Found is strictly older than
+    `retention_weeks` from today — a rolling window, not an ever-growing
+    archive. Uses rewrite_jobs_sheet (rebuild, not ws.delete_rows()) for
+    the same reason verify_links.py/reclassify_legacy.py do; see that
+    function's docstring for why delete_rows() isn't safe here.
+
+    A row whose Date_Found can't be parsed is KEPT, not discarded — same
+    fail-safe-toward-keeping-data principle as the link-check asymmetry
+    (check_url.py): being unsure whether a row is stale is not the same as
+    knowing it is, and silently losing a row is worse than keeping one
+    that looks a little old.
+
+    Returns the number of rows discarded.
+    """
+    if "Jobs" not in wb.sheetnames:
+        return 0
+    ws = wb["Jobs"]
+    if ws.max_row < 2:
+        return 0
+
+    cutoff = date.today() - timedelta(weeks=retention_weeks)
+    keep_rows: list[dict] = []
+    discarded = 0
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[0]:
+            continue
+        row_dict = dict(zip(COLUMNS, row))
+        try:
+            found_date = date.fromisoformat(str(row_dict.get("Date_Found"))[:10])
+        except ValueError:
+            keep_rows.append(row_dict)
+            continue
+        if found_date < cutoff:
+            discarded += 1
+        else:
+            keep_rows.append(row_dict)
+
+    if discarded:
+        rewrite_jobs_sheet(wb, keep_rows)
+    return discarded
+
+
 def _build_dashboard(wb: Workbook):
     """Rebuild the Dashboard sheet with KPI summary and charts."""
     if "Dashboard" in wb.sheetnames:
@@ -240,9 +345,9 @@ def _build_dashboard(wb: Workbook):
         by_status[status] = by_status.get(status, 0) + 1
 
         title = j.get("Title") or "Unknown"
-        # Normalise to broad category
+        # Normalise to broad category (driven by the active profile's target_roles)
         cat = "Other"
-        for kw in ["Data Analyst", "Data Engineer", "Business Analyst", "BI Developer", "Analytics Engineer"]:
+        for kw in TARGET_ROLES:
             if kw.lower() in title.lower():
                 cat = kw
                 break
